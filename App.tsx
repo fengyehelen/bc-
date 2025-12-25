@@ -24,9 +24,20 @@ const App: React.FC = () => {
   const [lang, setLang] = useState<Language>('en');
   const [sort, setSort] = useState<SortOption>(SortOption.NEWEST);
 
-  // Load initial data from DB
+  // Load initial data from DB and SANITIZE IT
   useEffect(() => {
-    setUsers(MockDb.getUsers());
+    const rawUsers = MockDb.getUsers();
+    // Fix missing fields for legacy users to prevent crashes
+    const sanitizedUsers = rawUsers.map(u => ({
+        ...u,
+        transactions: u.transactions || [],
+        messages: u.messages || [],
+        myTasks: u.myTasks || [],
+        // @ts-ignore - Handle legacy bankInfo conversion
+        bankAccounts: u.bankAccounts || (u.bankInfo ? [{id:'legacy', ...u.bankInfo}] : [])
+    }));
+    setUsers(sanitizedUsers);
+
     setPlatforms(MockDb.getPlatforms());
     setActivities(MockDb.getActivities());
     setAdmins(MockDb.getAdmins());
@@ -80,9 +91,9 @@ const App: React.FC = () => {
           myTasks: [], 
           registrationDate: new Date().toISOString(), 
           role: 'user', 
-          bankAccounts: [], // Initial empty array
+          bankAccounts: [], 
           messages: [{
-            id: 'm1', title: 'Welcome', content: 'Welcome to BetBounty! Start earning today.', date: new Date().toISOString(), read: false
+            id: 'm1', title: 'Welcome', content: 'Welcome to OddsHub! Start earning today.', date: new Date().toISOString(), read: false
           }],
           transactions: config.initialBalance > 0 ? [{
             id: 'tx_init', type: 'system_bonus', amount: config.initialBalance, date: new Date().toISOString(), description: 'Registration Bonus', status: 'success'
@@ -104,14 +115,14 @@ const App: React.FC = () => {
         // Simple fallback
         if (!existingUser.password && password !== '123456') return "Incorrect password.";
         
-        // Migrate legacy users with single bankInfo to bankAccounts array if needed
-        // @ts-ignore
-        if (existingUser.bankInfo && (!existingUser.bankAccounts || existingUser.bankAccounts.length === 0)) {
-            // @ts-ignore
-            existingUser.bankAccounts = [{ id: 'legacy', ...existingUser.bankInfo }];
-        }
+        // Dynamic sanitization on login just in case
+        const safeUser = {
+            ...existingUser,
+            transactions: existingUser.transactions || [],
+            bankAccounts: existingUser.bankAccounts || []
+        };
         
-        setUser(existingUser);
+        setUser(safeUser);
         return null;
     }
   };
@@ -167,7 +178,7 @@ const App: React.FC = () => {
                  ...u,
                  balance: u.balance + commAmount,
                  totalEarnings: u.totalEarnings + commAmount,
-                 transactions: [tx, ...u.transactions]
+                 transactions: [tx, ...(u.transactions || [])]
              };
          }
          return u;
@@ -178,42 +189,49 @@ const App: React.FC = () => {
   };
 
   const updateTaskStatus = (userId: string, taskId: string, status: 'completed' | 'rejected') => {
-     // 1. Find User and Task
-     let currentUsers = [...users];
-     const targetUserIndex = currentUsers.findIndex(u => u.id === userId);
-     if (targetUserIndex === -1) return;
-     const targetUser = currentUsers[targetUserIndex];
-     const task = targetUser.myTasks.find(t => t.id === taskId);
-     if (!task) return;
+     setUsers(prevUsers => {
+         // Create a deep-ish copy to avoid mutation issues
+         let currentUsers = [...prevUsers];
+         const targetUserIndex = currentUsers.findIndex(u => u.id === userId);
+         
+         if (targetUserIndex === -1) return prevUsers;
+         
+         const targetUser = currentUsers[targetUserIndex];
+         const task = targetUser.myTasks.find(t => t.id === taskId);
+         
+         if (!task) return prevUsers;
 
-     const reward = task.rewardAmount;
+         const reward = task.rewardAmount;
 
-     // 2. Update User Task Status & Balance (if completed)
-     const newTaskStatus = status;
-     let updatedUser = {
-        ...targetUser,
-        myTasks: targetUser.myTasks.map(t => t.id === taskId ? { ...t, status: newTaskStatus } : t)
-     };
-
-     if (status === 'completed') {
-         const tx: Transaction = {
-             id: `rew_${taskId}`, type: 'task_reward', amount: reward, date: new Date().toISOString(), description: `Task Reward: ${task.platformName}`, status: 'success'
+         // Update User Task Status
+         let updatedUser = {
+            ...targetUser,
+            myTasks: targetUser.myTasks.map(t => t.id === taskId ? { ...t, status: status } : t)
          };
-         updatedUser.balance += reward;
-         updatedUser.totalEarnings += reward;
-         updatedUser.transactions = [tx, ...updatedUser.transactions];
-     }
-     
-     // Update local user array
-     currentUsers[targetUserIndex] = updatedUser;
 
-     // 3. Handle Commissions (if completed)
-     if (status === 'completed') {
-         currentUsers = distributeCommissions(currentUsers, userId, reward);
-     }
+         if (status === 'completed') {
+             const tx: Transaction = {
+                 id: `rew_${taskId}`, type: 'task_reward', amount: reward, date: new Date().toISOString(), description: `Task Reward: ${task.platformName}`, status: 'success'
+             };
+             updatedUser.balance += reward;
+             updatedUser.totalEarnings += reward;
+             updatedUser.transactions = [tx, ...(updatedUser.transactions || [])];
+         }
+         
+         currentUsers[targetUserIndex] = updatedUser;
 
-     setUsers(currentUsers);
-     if (user?.id === userId) setUser(currentUsers.find(u => u.id === userId) || null);
+         // Handle Commissions
+         if (status === 'completed') {
+             currentUsers = distributeCommissions(currentUsers, userId, reward);
+         }
+
+         // Update local session user if it's the current user
+         if (user && user.id === userId) {
+            setUser(currentUsers.find(u => u.id === userId) || null);
+         }
+
+         return currentUsers;
+     });
   };
 
   const updateUserPassword = (userId: string, newPass: string) => {
@@ -249,7 +267,7 @@ const App: React.FC = () => {
       const updatedUser: User = {
           ...user,
           balance: user.balance - amount,
-          transactions: [tx, ...user.transactions]
+          transactions: [tx, ...(user.transactions || [])]
       };
       setUser(updatedUser);
       setUsers(users.map(u => u.id === user.id ? updatedUser : u));
