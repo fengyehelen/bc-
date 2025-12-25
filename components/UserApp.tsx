@@ -35,6 +35,13 @@ export const UserLogin: React.FC<{ onAuth: (p: string, pw: string, isReg: boolea
 
   const handleAuth = () => {
       if(!phone || !password) return alert("Please fill in phone and password");
+      
+      if (isRegister) {
+          if (!code) return alert("Please enter verification code");
+          // Magic code check for testing
+          if (code !== '9527') return alert("Invalid verification code. Please try again.");
+      }
+
       const error = onAuth(phone, password, isRegister, inviteCode);
       if(error) alert(error.replace(password, '***')); 
   };

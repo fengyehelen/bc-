@@ -115,7 +115,8 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
         content: newActivity.content || '',
         link: '#',
         active: true,
-        targetCountries: newActivity.targetCountries
+        // STRICTLY DEFAULT TO ARRAY
+        targetCountries: (newActivity.targetCountries && newActivity.targetCountries.length > 0) ? newActivity.targetCountries : ['id']
       };
       props.addActivity(act);
       setNewActivity({ title: '', imageUrl: '', content: '', targetCountries: ['id'] });
@@ -276,16 +277,26 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                      </div>
                   </div>
                   <button onClick={() => {
+                        // FORCE ARRAY TYPES TO AVOID UNDEFINED
+                        const safeTargetCountries = (newTask.targetCountries && newTask.targetCountries.length > 0) ? newTask.targetCountries : ['id'];
+                        const safeSteps = (newTask.steps && newTask.steps.length > 0) ? newTask.steps : ['Step 1'];
+                        
                         props.addTask({
                            id: 't' + Date.now(),
                            name: newTask.name || 'New Task',
                            logoUrl: newTask.logoUrl || '',
                            description: newTask.description || '',
                            downloadLink: newTask.downloadLink || '#',
-                           firstDepositAmount: 0, rewardAmount: newTask.rewardAmount || 0,
-                           launchDate: new Date().toISOString(), remainingQty: 100, totalQty: 100,
-                           steps: ['Step 1'], rules: '', status: 'online', type: 'deposit',
-                           targetCountries: newTask.targetCountries as Language[]
+                           firstDepositAmount: 0, 
+                           rewardAmount: newTask.rewardAmount || 0,
+                           launchDate: new Date().toISOString(), 
+                           remainingQty: 100, 
+                           totalQty: 100,
+                           steps: safeSteps, 
+                           rules: '', 
+                           status: 'online', 
+                           type: 'deposit',
+                           targetCountries: safeTargetCountries as Language[]
                         });
                         alert('Published');
                      }} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold">Publish</button>
@@ -301,7 +312,8 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                                <img src={t.logoUrl || ''} className="w-10 h-10 rounded bg-slate-100" />
                                <div>
                                    <h3 className="font-bold">{t.name || 'Unnamed Task'}</h3>
-                                   <div className="text-xs text-slate-500">{(t.targetCountries || []).join(', ')} | Reward: {t.rewardAmount}</div>
+                                   {/* STRICT ARRAY CHECK IN RENDER */}
+                                   <div className="text-xs text-slate-500">{(Array.isArray(t.targetCountries) ? t.targetCountries : []).join(', ')} | Reward: {t.rewardAmount}</div>
                                </div>
                            </div>
                            <div className="flex items-center gap-2">
@@ -343,7 +355,7 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                                <img src={a.imageUrl || ''} className="w-16 h-10 object-cover rounded bg-slate-100" />
                                <div>
                                    <h3 className="font-bold">{a.title || 'Untitled'}</h3>
-                                   <div className="text-xs text-slate-500">{(a.targetCountries || []).join(', ')}</div>
+                                   <div className="text-xs text-slate-500">{(Array.isArray(a.targetCountries) ? a.targetCountries : []).join(', ')}</div>
                                </div>
                            </div>
                            <div className="flex items-center gap-2">
