@@ -3,7 +3,7 @@ import { User, Platform, Activity, Admin, SystemConfig, Language } from '../type
 import { generatePlatformInfo, generatePlatformLogo } from '../services/geminiService';
 import { 
   Shield, CheckCircle, User as UserIcon, List, Image, Key, LogOut, ArrowLeft,
-  LayoutDashboard, Sparkles, Wand2, Zap, Lock, Settings, Mail, Send, Trash2, Power
+  LayoutDashboard, Sparkles, Wand2, Zap, Lock, Settings, Mail, Send, Trash2, Power, Plus, X
 } from 'lucide-react';
 
 interface AdminAppProps {
@@ -63,8 +63,22 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
   // States
   const [hasApiKey, setHasApiKey] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  // Activity State
   const [newActivity, setNewActivity] = useState<{title:string, imageUrl:string, content:string, targetCountries: Language[]}>({ title: '', imageUrl: '', content: '', targetCountries: ['id'] });
-  const [newTask, setNewTask] = useState<Partial<Platform>>({ name: '', description: '', rules: '', firstDepositAmount: 0, rewardAmount: 0, targetCountries: ['id'], steps: ['Download', 'Register', 'Deposit'], downloadLink: '' });
+  
+  // Task State - Initialized with default steps
+  const [newTask, setNewTask] = useState<Partial<Platform>>({ 
+      name: '', 
+      description: '', 
+      rules: '', 
+      firstDepositAmount: 0, 
+      rewardAmount: 0, 
+      targetCountries: ['id'], 
+      steps: ['Download the App', 'Register Account', 'Deposit & Play'], 
+      downloadLink: '' 
+  });
+
   const [newAdmin, setNewAdmin] = useState({ username: '', password: '', role: 'editor' });
   const [msgData, setMsgData] = useState({ userId: 'all', title: '', content: '' });
   
@@ -121,6 +135,23 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
       props.addActivity(act);
       setNewActivity({ title: '', imageUrl: '', content: '', targetCountries: ['id'] });
       alert('Activity Published Successfully!');
+  };
+
+  // --- TASK STEPS MANAGERS ---
+  const handleAddStep = () => {
+      setNewTask(prev => ({ ...prev, steps: [...(prev.steps || []), 'New Step'] }));
+  };
+  
+  const handleRemoveStep = (index: number) => {
+      setNewTask(prev => ({ ...prev, steps: (prev.steps || []).filter((_, i) => i !== index) }));
+  };
+
+  const handleEditStep = (index: number, value: string) => {
+      setNewTask(prev => {
+          const newSteps = [...(prev.steps || [])];
+          newSteps[index] = value;
+          return { ...prev, steps: newSteps };
+      });
   };
 
   const handleAiFillTask = async () => {
@@ -262,7 +293,7 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                          <input type="text" value={newTask.name} onChange={e => setNewTask({...newTask, name: e.target.value})} className="w-full border p-2 rounded" />
                      </div>
                      <div>
-                        <label className="block text-xs font-bold uppercase mb-2">Target Countries</label>
+                        <label className="block text-xs font-bold uppercase mb-2">Target Countries (Select at least one)</label>
                         <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border rounded bg-slate-50">
                            {COUNTRIES.map(c => (
                                <label key={c.value} className="flex items-center space-x-2 cursor-pointer hover:bg-slate-100 p-1 rounded">
@@ -283,8 +314,32 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                            ))}
                         </div>
                      </div>
-                     <div><label className="block text-xs font-bold uppercase mb-1">Reward</label><input type="number" value={newTask.rewardAmount} onChange={e => setNewTask({...newTask, rewardAmount: Number(e.target.value)})} className="w-full border p-2 rounded" /></div>
+                     <div>
+                        <label className="block text-xs font-bold uppercase mb-1">Reward (Numeric Value)</label>
+                        <input type="number" value={newTask.rewardAmount} onChange={e => setNewTask({...newTask, rewardAmount: Number(e.target.value)})} className="w-full border p-2 rounded" placeholder="e.g. 50000" />
+                        <p className="text-[10px] text-slate-500">Value will be displayed with user's local currency symbol.</p>
+                     </div>
                      <div><label className="block text-xs font-bold uppercase mb-1">Link</label><input type="text" value={newTask.downloadLink} onChange={e => setNewTask({...newTask, downloadLink: e.target.value})} className="w-full border p-2 rounded" /></div>
+                     
+                     <div className="col-span-2">
+                        <label className="block text-xs font-bold uppercase mb-2">Task Steps</label>
+                        <div className="space-y-2">
+                            {(newTask.steps || []).map((step, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-slate-400 w-12">Step {idx + 1}</span>
+                                    <input 
+                                        type="text" 
+                                        value={step} 
+                                        onChange={(e) => handleEditStep(idx, e.target.value)}
+                                        className="flex-1 border p-2 rounded text-sm"
+                                    />
+                                    <button onClick={() => handleRemoveStep(idx)} className="text-red-500 hover:bg-red-50 p-1 rounded"><X size={16}/></button>
+                                </div>
+                            ))}
+                            <button onClick={handleAddStep} className="text-xs flex items-center gap-1 text-indigo-600 font-bold hover:bg-indigo-50 px-2 py-1 rounded"><Plus size={14}/> Add Step</button>
+                        </div>
+                     </div>
+
                      <div className="col-span-2"><label className="block text-xs font-bold uppercase mb-1">Desc</label><input type="text" value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} className="w-full border p-2 rounded" /></div>
                      <div className="col-span-2 flex gap-4 items-center">
                         <button onClick={handleAiLogo} disabled={isGenerating} className="text-xs text-indigo-600 flex items-center gap-1"><Wand2 size={12}/> AI Logo</button>
@@ -293,6 +348,10 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                      </div>
                   </div>
                   <button onClick={() => {
+                        // Ensure data is valid before passing up
+                        const finalCountries = (newTask.targetCountries && newTask.targetCountries.length > 0) ? newTask.targetCountries : ['id'];
+                        const finalSteps = (newTask.steps && newTask.steps.length > 0) ? newTask.steps : ['Download', 'Register'];
+                        
                         props.addTask({
                            id: 't' + Date.now(),
                            name: newTask.name || 'New Task',
@@ -304,12 +363,11 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                            launchDate: new Date().toISOString(), 
                            remainingQty: 100, 
                            totalQty: 100,
-                           steps: (newTask.steps && newTask.steps.length > 0) ? newTask.steps : ['Step 1'], 
+                           steps: finalSteps, 
                            rules: '', 
                            status: 'online', 
                            type: 'deposit',
-                           // Use default 'id' if empty to prevent issues
-                           targetCountries: (newTask.targetCountries && newTask.targetCountries.length > 0) ? newTask.targetCountries : ['id']
+                           targetCountries: finalCountries as Language[]
                         });
                         alert('Published');
                      }} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold">Publish</button>

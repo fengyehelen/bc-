@@ -114,13 +114,13 @@ export const UserLogin: React.FC<{ onAuth: (p: string, pw: string, isReg: boolea
 // --- HOME VIEW ---
 export const HomeView: React.FC<{ platforms: Platform[]; t: any; setSort: (s: SortOption) => void; sort: SortOption; lang: Language; activities: Activity[]; user: User; }> = ({ platforms, t, setSort, sort, lang, activities, user }) => {
   const navigate = useNavigate();
-  // Filter only online platforms and target countries
-  const filteredPlatforms = React.useMemo(() => platforms.filter(p => p.status === 'online' && p.targetCountries.includes(lang)), [platforms, lang]);
+  // Filter only online platforms and target countries - SAFEGUARDED with ?. and || []
+  const filteredPlatforms = React.useMemo(() => platforms.filter(p => p.status === 'online' && (p.targetCountries || []).includes(lang)), [platforms, lang]);
   
   return (
     <div className="p-4 space-y-4">
       {/* Banner */}
-      {activities.filter(a => a.active && a.targetCountries.includes(lang)).length > 0 && (
+      {activities.filter(a => a.active && (a.targetCountries || []).includes(lang)).length > 0 && (
          <div className="relative w-full h-40 rounded-2xl overflow-hidden shadow-lg mb-6 cursor-pointer" onClick={() => navigate(`/activity/${activities[0].id}`)}>
            <img src={activities[0].imageUrl} className="w-full h-full object-cover" />
            <div className="absolute bottom-0 inset-x-0 bg-black/60 p-2 text-white font-bold">{activities[0].title}</div>
@@ -163,7 +163,7 @@ export const TaskDetailView: React.FC<{ platforms: Platform[]; onStartTask: (p: 
       <div className="sticky top-0 bg-slate-900/95 backdrop-blur z-20 border-b border-slate-800 p-4 flex items-center space-x-3"><button onClick={() => navigate(-1)} className="text-slate-300"><ArrowLeft size={24} /></button><h1 className="text-white font-bold text-lg flex-1 truncate">{platform.name}</h1></div>
       <div className="p-4 space-y-6">
         <div className="flex items-center space-x-4"><img src={platform.logoUrl} className="w-20 h-20 rounded-xl bg-slate-800" /><div><h2 className="text-2xl font-bold text-yellow-400">{formatMoney(platform.rewardAmount, user.currency)}</h2><p className="text-slate-400 text-sm">{platform.description}</p></div></div>
-        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700"><h3 className="text-white font-bold mb-4 flex items-center gap-2"><List size={18}/> {t.steps}</h3>{platform.steps.map((s,i) => <div key={i} className="text-slate-300 text-sm mb-2">{i+1}. {s}</div>)}</div>
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700"><h3 className="text-white font-bold mb-4 flex items-center gap-2"><List size={18}/> {t.steps}</h3>{(platform.steps || []).map((s,i) => <div key={i} className="text-slate-300 text-sm mb-2">{i+1}. {s}</div>)}</div>
       </div>
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-900/90 backdrop-blur z-50 max-w-md mx-auto">
         <button onClick={() => { onStartTask(platform); window.open(platform.downloadLink, '_blank'); }} className="w-full bg-yellow-500 text-slate-900 font-bold py-3.5 rounded-xl">{t.startTask}</button>
