@@ -291,14 +291,16 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                      }} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold">Publish</button>
                </div>
                
-               {/* Task List */}
+               {/* Task List - Robust Defense */}
                <div className="grid grid-cols-1 gap-3">
-                   {props.tasks.map(t => (
-                       <div key={t.id} className="bg-white p-4 rounded border flex justify-between items-center">
+                   {(props.tasks || []).map(t => {
+                       if (!t) return null;
+                       return (
+                       <div key={t.id || Math.random()} className="bg-white p-4 rounded border flex justify-between items-center">
                            <div className="flex items-center gap-3">
-                               <img src={t.logoUrl} className="w-10 h-10 rounded bg-slate-100" />
+                               <img src={t.logoUrl || ''} className="w-10 h-10 rounded bg-slate-100" />
                                <div>
-                                   <h3 className="font-bold">{t.name}</h3>
+                                   <h3 className="font-bold">{t.name || 'Unnamed Task'}</h3>
                                    <div className="text-xs text-slate-500">{(t.targetCountries || []).join(', ')} | Reward: {t.rewardAmount}</div>
                                </div>
                            </div>
@@ -308,7 +310,7 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                                <button onClick={() => props.manageContent('task', t.id, 'delete')} className="p-2 hover:bg-red-50 rounded text-red-600" title="Delete"><Trash2 size={16}/></button>
                            </div>
                        </div>
-                   ))}
+                   )})}
                </div>
            </div>
         )}
@@ -331,14 +333,16 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                  <button onClick={handleAddActivity} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold">Publish</button>
                </div>
 
-               {/* Activity List */}
+               {/* Activity List - Robust Defense */}
                <div className="grid grid-cols-1 gap-3">
-                   {(props.activities || []).map(a => (
-                       <div key={a.id} className="bg-white p-4 rounded border flex justify-between items-center">
+                   {(props.activities || []).map(a => {
+                       if (!a) return null;
+                       return (
+                       <div key={a.id || Math.random()} className="bg-white p-4 rounded border flex justify-between items-center">
                            <div className="flex items-center gap-3">
-                               <img src={a.imageUrl} className="w-16 h-10 object-cover rounded bg-slate-100" />
+                               <img src={a.imageUrl || ''} className="w-16 h-10 object-cover rounded bg-slate-100" />
                                <div>
-                                   <h3 className="font-bold">{a.title}</h3>
+                                   <h3 className="font-bold">{a.title || 'Untitled'}</h3>
                                    <div className="text-xs text-slate-500">{(a.targetCountries || []).join(', ')}</div>
                                </div>
                            </div>
@@ -348,7 +352,7 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                                <button onClick={() => props.manageContent('activity', a.id, 'delete')} className="p-2 hover:bg-red-50 rounded text-red-600" title="Delete"><Trash2 size={16}/></button>
                            </div>
                        </div>
-                   ))}
+                   )})}
                </div>
            </div>
         )}

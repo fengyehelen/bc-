@@ -26,12 +26,11 @@ const App: React.FC = () => {
 
   // Load initial data from DB and SANITIZE IT
   useEffect(() => {
+    // 1. Sanitize Users
     const rawUsers = MockDb.getUsers();
-    // Fix missing fields for legacy users to prevent crashes
-    const sanitizedUsers = rawUsers.map(u => {
-        // Handle legacy bank conversion and remove empty/invalid entries
+    const sanitizedUsers = Array.isArray(rawUsers) ? rawUsers.map(u => {
         let safeAccounts = u.bankAccounts || [];
-        // @ts-ignore
+        // @ts-ignore - Handle legacy bankInfo
         if (!u.bankAccounts && u.bankInfo && Object.keys(u.bankInfo).length > 0) {
             // @ts-ignore
              safeAccounts = [{id:'legacy', ...u.bankInfo}];
@@ -44,13 +43,31 @@ const App: React.FC = () => {
             messages: u.messages || [],
             myTasks: u.myTasks || [],
             bankAccounts: safeAccounts,
-            currency: u.currency || LANGUAGES['en'].currency // Default fallback
+            currency: u.currency || LANGUAGES['en'].currency
         };
-    });
+    }) : [];
     setUsers(sanitizedUsers);
 
-    setPlatforms(MockDb.getPlatforms());
-    setActivities(MockDb.getActivities());
+    // 2. Sanitize Platforms (Tasks)
+    const rawPlatforms = MockDb.getPlatforms();
+    const sanitizedPlatforms = Array.isArray(rawPlatforms) ? rawPlatforms.map(p => ({
+        ...p,
+        targetCountries: (Array.isArray(p.targetCountries) ? p.targetCountries : ['id']) as Language[], // Ensure array
+        steps: Array.isArray(p.steps) ? p.steps : [],
+        status: p.status || 'online',
+        rewardAmount: p.rewardAmount || 0
+    })) : MOCK_PLATFORMS;
+    setPlatforms(sanitizedPlatforms);
+
+    // 3. Sanitize Activities
+    const rawActivities = MockDb.getActivities();
+    const sanitizedActivities = Array.isArray(rawActivities) ? rawActivities.map(a => ({
+        ...a,
+        targetCountries: (Array.isArray(a.targetCountries) ? a.targetCountries : ['id']) as Language[], // Ensure array
+        active: a.active !== undefined ? a.active : true
+    })) : MOCK_ACTIVITIES;
+    setActivities(sanitizedActivities);
+
     setAdmins(MockDb.getAdmins());
     setConfig(MockDb.getConfig());
 
@@ -75,23 +92,19 @@ const App: React.FC = () => {
     if (isRegister) {
         if (existingUser) return "Account already exists.";
         
-        // Handle Referral
         let referrerId = undefined;
         if (inviteCode) {
            const upline = users.find(u => u.referralCode === inviteCode);
            if (upline) {
                referrerId = upline.id;
-               // Update upline count
                const updatedUplines = users.map(u => {
                   if (u.id === upline.id) return { ...u, invitedCount: u.invitedCount + 1 };
                   return u;
                });
-               setUsers(updatedUplines); // Temporary update
+               setUsers(updatedUplines);
            }
         }
 
-        // Determine Country specific settings
-        // Since we don't have IP geo-location in this mock, we use the current 'lang' setting as the user's "country" for currency/balance.
         const userCountry = lang; 
         const currencySymbol = LANGUAGES[userCountry].currency;
         const startBalance = config.initialBalance[userCountry] || 0;
@@ -101,7 +114,7 @@ const App: React.FC = () => {
           phone: phone, 
           password: password,
           balance: startBalance,
-          currency: currencySymbol, // Lock currency to registration country
+          currency: currencySymbol,
           totalEarnings: startBalance, 
           referralCode: 'U'+Math.floor(Math.random()*99999), 
           referrerId: referrerId,
@@ -118,7 +131,6 @@ const App: React.FC = () => {
           }] : []
         };
         
-        // Merge upline updates if any
         setUsers(prev => {
             if (referrerId) {
                 return [...prev.map(u => u.id === referrerId ? { ...u, invitedCount: u.invitedCount + 1 } : u), newUser];
@@ -130,10 +142,8 @@ const App: React.FC = () => {
     } else {
         if (!existingUser) return "Account does not exist.";
         if (existingUser.password && existingUser.password !== password) return "Incorrect password.";
-        // Simple fallback
         if (!existingUser.password && password !== '123456') return "Incorrect password.";
         
-        // Dynamic sanitization on login just in case
         const safeUser = {
             ...existingUser,
             transactions: existingUser.transactions || [],
@@ -176,7 +186,6 @@ const App: React.FC = () => {
      alert("Proof Submitted! Waiting for audit.");
   };
 
-  // RECURSIVE COMMISSION FUNCTION
   const distributeCommissions = (allUsers: User[], currentUserId: string, amount: number, level: number = 1): User[] => {
      if (level > 3) return allUsers;
      const currentUser = allUsers.find(u => u.id === currentUserId);
@@ -188,7 +197,6 @@ const App: React.FC = () => {
      
      if (commAmount <= 0) return allUsers;
 
-     // Update Upline
      const updatedUsers = allUsers.map(u => {
          if (u.id === uplineId) {
              const tx: Transaction = {
@@ -209,13 +217,11 @@ const App: React.FC = () => {
          return u;
      });
 
-     // Recurse to next level upline
      return distributeCommissions(updatedUsers, uplineId, amount, level + 1);
   };
 
   const updateTaskStatus = (userId: string, taskId: string, status: 'completed' | 'rejected') => {
      setUsers(prevUsers => {
-         // Create a deep-ish copy to avoid mutation issues
          let currentUsers = [...prevUsers];
          const targetUserIndex = currentUsers.findIndex(u => u.id === userId);
          
@@ -227,8 +233,6 @@ const App: React.FC = () => {
          if (!task) return prevUsers;
 
          const reward = task.rewardAmount;
-
-         // Update User Task Status
          let updatedUser = {
             ...targetUser,
             myTasks: targetUser.myTasks.map(t => t.id === taskId ? { ...t, status: status } : t)
@@ -244,13 +248,10 @@ const App: React.FC = () => {
          }
          
          currentUsers[targetUserIndex] = updatedUser;
-
-         // Handle Commissions
          if (status === 'completed') {
              currentUsers = distributeCommissions(currentUsers, userId, reward);
          }
 
-         // Update local session user if it's the current user
          if (user && user.id === userId) {
             setUser(currentUsers.find(u => u.id === userId) || null);
          }
@@ -269,19 +270,14 @@ const App: React.FC = () => {
         id: 'acc_' + Date.now(),
         bankName, accountName, accountNumber, type 
     };
-    // Append to existing accounts
     const updatedAccounts = [...(user.bankAccounts || []), newAccount];
     const updatedUser: User = { ...user, bankAccounts: updatedAccounts };
-    
     setUser(updatedUser);
     setUsers(users.map(u => u.id === user.id ? updatedUser : u));
   };
 
   const handleWithdraw = (amount: number, accountId: string) => {
       if (!user) return;
-      // Get country code from currency or generic fallback (Here we assume user.currency is linked to a country in LANGUAGES, if not fallback to 'en')
-      // A better way is to store registrationCountry on User, but for now we try to deduce or fallback.
-      // Since we lock currency symbol, we can try to find the key in LANGUAGES.
       const userCountryEntry = Object.entries(LANGUAGES).find(([k, v]) => v.currency === user.currency);
       const countryCode = userCountryEntry ? userCountryEntry[0] : 'en';
       const minWithdraw = config.minWithdrawAmount[countryCode] || 100;
