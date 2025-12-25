@@ -6,13 +6,13 @@ import {
   ArrowLeft, ChevronRight, Copy, Upload, Clock, XCircle, User as UserIcon, 
   List, CheckCircle, Smartphone, Lock, MessageSquare, LogOut, QrCode, 
   CreditCard, Eye, EyeOff, ArrowDown, Sparkles, Plus, ShieldCheck, Wallet, History,
-  Share2, Facebook, Twitter, Link as LinkIcon, Send, MessageCircle, Dices
+  Share2, Facebook, Twitter, Link as LinkIcon, Send, MessageCircle
 } from 'lucide-react';
 import Layout from './Layout';
 
-// Format using User's Currency, not language setting
-const formatMoney = (amount: number, currencySymbol: string) => {
-  return `${currencySymbol} ${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+const formatMoney = (amount: number, lang: Language) => {
+  const config = LANGUAGES[lang];
+  return `${config.currency} ${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 };
 
 // --- USER LOGIN ---
@@ -35,92 +35,58 @@ export const UserLogin: React.FC<{ onAuth: (p: string, pw: string, isReg: boolea
 
   const handleAuth = () => {
       if(!phone || !password) return alert("Please fill in phone and password");
-      
-      if (isRegister) {
-          if (!code) return alert("Please enter verification code");
-          // Strict verification code check
-          if (code !== '9527') return alert("Verification code incorrect. Please try again.");
-      }
-
       const error = onAuth(phone, password, isRegister, inviteCode);
       if(error) alert(error.replace(password, '***')); 
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 bg-[linear-gradient(45deg,#0f172a,#1e293b,#0f172a)] animate-gradient-bg flex flex-col items-center justify-center p-6 relative overflow-hidden">
-       {/* Background Effects */}
-       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-indigo-500/20 rounded-full blur-[100px] pointer-events-none"></div>
-       <div className="absolute bottom-0 right-0 w-64 h-64 bg-yellow-500/10 rounded-full blur-[80px] pointer-events-none"></div>
-
-       <div className="w-full max-w-sm backdrop-blur-xl bg-white/5 border border-white/10 p-8 rounded-3xl shadow-2xl animate-entry">
-         <div className="flex flex-col items-center mb-8">
-            <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center shadow-lg shadow-yellow-500/30 mb-4 animate-float">
-                <Dices size={48} className="text-white drop-shadow-md" />
-            </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">{t.appName}</h1>
-            <p className="text-slate-400 text-xs mt-2 uppercase tracking-widest opacity-80">Premium Gaming Hub</p>
-         </div>
-         
-         <div className="space-y-4">
-           <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3.5 flex items-center space-x-3 focus-within:border-yellow-500/50 focus-within:bg-slate-900/80 transition-all animate-entry delay-100">
-               <Smartphone className="text-slate-400" size={20} />
-               <input type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder={t.phone} className="bg-transparent text-white w-full focus:outline-none placeholder:text-slate-600" />
-           </div>
-           <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3.5 flex items-center space-x-3 focus-within:border-yellow-500/50 focus-within:bg-slate-900/80 transition-all animate-entry delay-100">
-               <Lock className="text-slate-400" size={20} />
-               <input type={showPwd ? "text" : "password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder={t.password} className="bg-transparent text-white w-full focus:outline-none placeholder:text-slate-600" />
-               <button onClick={() => setShowPwd(!showPwd)} className="text-slate-500 hover:text-white transition-colors">{showPwd ? <EyeOff size={18} /> : <Eye size={18} />}</button>
-           </div>
-           {isRegister && (
-               <>
-                   <div className="flex space-x-2 animate-entry delay-200">
-                       <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3.5 flex items-center space-x-3 flex-1 focus-within:border-yellow-500/50 transition-all">
-                           <MessageSquare className="text-slate-400" size={20} />
-                           <input type="text" value={code} onChange={e=>setCode(e.target.value)} placeholder={t.verifyCode} className="bg-transparent text-white w-full focus:outline-none placeholder:text-slate-600" />
-                       </div>
-                       <button disabled={timer > 0} onClick={startTimer} className="bg-gradient-to-r from-slate-700 to-slate-800 text-white px-4 rounded-xl text-xs font-bold disabled:opacity-50 w-24 border border-slate-600 hover:border-slate-500 transition-all">
-                           {timer > 0 ? `${timer}s` : t.getCode}
-                       </button>
-                   </div>
-                   <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3.5 flex items-center space-x-3 animate-entry delay-200 focus-within:border-yellow-500/50 transition-all">
-                       <QrCode className="text-slate-400" size={20} />
-                       <input type="text" value={inviteCode} onChange={e=>setInviteCode(e.target.value)} placeholder={t.inviteCode} className="bg-transparent text-white w-full focus:outline-none placeholder:text-slate-600" />
-                   </div>
-               </>
-           )}
-           <button onClick={handleAuth} className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-900 font-bold py-4 rounded-xl shadow-lg shadow-amber-900/20 mt-6 hover:brightness-110 active:scale-95 transition-all uppercase tracking-wide animate-entry delay-300">
-               {isRegister ? t.register : t.login}
-           </button>
-         </div>
-
-         <div className="flex justify-center text-xs text-slate-400 mt-6 px-1 animate-entry delay-300">
-            <span className="mr-2 opacity-70">{isRegister ? "Already have an account?" : "Don't have an account?"}</span>
-            <button onClick={() => setIsRegister(!isRegister)} className="text-yellow-500 hover:text-yellow-400 font-bold hover:underline transition-all">
-                {isRegister ? t.login : t.register}
-            </button>
-         </div>
-
-         <div className="mt-8 pt-6 border-t border-white/10 flex justify-center animate-entry delay-300">
-            <a href="#/admin" className="text-slate-500 text-[10px] flex items-center gap-2 hover:text-slate-300 transition-colors uppercase tracking-widest">
-                <ShieldCheck size={12} />
-                <span>{t.merchantLogin}</span>
-            </a>
-         </div>
-       </div>
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 relative">
+       <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center shadow-xl shadow-yellow-500/20 mb-6"><Sparkles size={40} className="text-white" /></div>
+      <h1 className="text-3xl font-bold text-white mb-8">{t.appName}</h1>
+      <div className="w-full max-w-xs space-y-4">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 flex items-center space-x-3">
+            <Smartphone className="text-slate-500" size={20} />
+            <input type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder={t.phone} className="bg-transparent text-white w-full focus:outline-none" />
+        </div>
+        <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 flex items-center space-x-3">
+            <Lock className="text-slate-500" size={20} />
+            <input type={showPwd ? "text" : "password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder={t.password} className="bg-transparent text-white w-full focus:outline-none" />
+            <button onClick={() => setShowPwd(!showPwd)} className="text-slate-500 hover:text-white">{showPwd ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+        </div>
+        {isRegister && (
+            <>
+                <div className="flex space-x-2">
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 flex items-center space-x-3 flex-1">
+                        <MessageSquare className="text-slate-500" size={20} />
+                        <input type="text" value={code} onChange={e=>setCode(e.target.value)} placeholder={t.verifyCode} className="bg-transparent text-white w-full focus:outline-none" />
+                    </div>
+                    <button disabled={timer > 0} onClick={startTimer} className="bg-slate-700 text-white px-4 rounded-xl text-xs font-bold disabled:opacity-50 w-24">
+                        {timer > 0 ? `${timer}s` : t.getCode}
+                    </button>
+                </div>
+                <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 flex items-center space-x-3">
+                    <QrCode className="text-slate-500" size={20} />
+                    <input type="text" value={inviteCode} onChange={e=>setInviteCode(e.target.value)} placeholder={t.inviteCode} className="bg-transparent text-white w-full focus:outline-none" />
+                </div>
+            </>
+        )}
+        <button onClick={handleAuth} className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-900 font-bold py-3.5 rounded-xl shadow-lg mt-4">{isRegister ? t.register : t.login}</button>
+        <div className="flex justify-center text-xs text-slate-400 mt-4 px-1"><button onClick={() => setIsRegister(!isRegister)} className="hover:text-white">{isRegister ? t.login : t.register}</button></div>
+        <div className="mt-12 pt-6 border-t border-slate-800 flex justify-center"><a href="#/admin" className="text-slate-600 text-xs flex items-center gap-2 hover:text-yellow-500"><ShieldCheck size={14} /><span>{t.merchantLogin}</span></a></div>
+      </div>
     </div>
   );
 };
 
 // --- HOME VIEW ---
-export const HomeView: React.FC<{ platforms: Platform[]; t: any; setSort: (s: SortOption) => void; sort: SortOption; lang: Language; activities: Activity[]; user: User; }> = ({ platforms, t, setSort, sort, lang, activities, user }) => {
+export const HomeView: React.FC<{ platforms: Platform[]; t: any; setSort: (s: SortOption) => void; sort: SortOption; lang: Language; activities: Activity[]; }> = ({ platforms, t, setSort, sort, lang, activities }) => {
   const navigate = useNavigate();
-  // Filter only online platforms and target countries
-  const filteredPlatforms = React.useMemo(() => platforms.filter(p => p.status === 'online' && p.targetCountries.includes(lang)), [platforms, lang]);
+  const filteredPlatforms = React.useMemo(() => platforms.filter(p => p.targetCountries.includes(lang)), [platforms, lang]);
   
   return (
     <div className="p-4 space-y-4">
       {/* Banner */}
-      {activities.filter(a => a.active && a.targetCountries.includes(lang)).length > 0 && (
+      {activities.filter(a => a.targetCountries.includes(lang)).length > 0 && (
          <div className="relative w-full h-40 rounded-2xl overflow-hidden shadow-lg mb-6 cursor-pointer" onClick={() => navigate(`/activity/${activities[0].id}`)}>
            <img src={activities[0].imageUrl} className="w-full h-full object-cover" />
            <div className="absolute bottom-0 inset-x-0 bg-black/60 p-2 text-white font-bold">{activities[0].title}</div>
@@ -141,7 +107,7 @@ export const HomeView: React.FC<{ platforms: Platform[]; t: any; setSort: (s: So
               <img src={p.logoUrl} className="w-20 h-20 rounded-xl bg-slate-700 object-cover" />
               <div className="flex-1">
                  <h3 className="font-bold text-white leading-tight">{p.name}</h3>
-                 <span className="text-yellow-400 font-bold text-lg">{formatMoney(p.rewardAmount, user.currency)}</span>
+                 <span className="text-yellow-400 font-bold text-lg">{formatMoney(p.rewardAmount, lang)}</span>
                  <div className="flex justify-end mt-2"><button className="bg-indigo-600 text-white text-xs px-3 py-1 rounded-full">{t.startTask}</button></div>
               </div>
             </div>
@@ -152,7 +118,7 @@ export const HomeView: React.FC<{ platforms: Platform[]; t: any; setSort: (s: So
   );
 };
 
-export const TaskDetailView: React.FC<{ platforms: Platform[]; onStartTask: (p: Platform) => void; t: any; lang: Language; user: User; }> = ({ platforms, onStartTask, t, lang, user }) => {
+export const TaskDetailView: React.FC<{ platforms: Platform[]; onStartTask: (p: Platform) => void; t: any; lang: Language; }> = ({ platforms, onStartTask, t, lang }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const platform = platforms.find(p => p.id === id);
@@ -162,7 +128,7 @@ export const TaskDetailView: React.FC<{ platforms: Platform[]; onStartTask: (p: 
     <div className="bg-slate-900 min-h-screen pb-32">
       <div className="sticky top-0 bg-slate-900/95 backdrop-blur z-20 border-b border-slate-800 p-4 flex items-center space-x-3"><button onClick={() => navigate(-1)} className="text-slate-300"><ArrowLeft size={24} /></button><h1 className="text-white font-bold text-lg flex-1 truncate">{platform.name}</h1></div>
       <div className="p-4 space-y-6">
-        <div className="flex items-center space-x-4"><img src={platform.logoUrl} className="w-20 h-20 rounded-xl bg-slate-800" /><div><h2 className="text-2xl font-bold text-yellow-400">{formatMoney(platform.rewardAmount, user.currency)}</h2><p className="text-slate-400 text-sm">{platform.description}</p></div></div>
+        <div className="flex items-center space-x-4"><img src={platform.logoUrl} className="w-20 h-20 rounded-xl bg-slate-800" /><div><h2 className="text-2xl font-bold text-yellow-400">{formatMoney(platform.rewardAmount, lang)}</h2><p className="text-slate-400 text-sm">{platform.description}</p></div></div>
         <div className="bg-slate-800 rounded-xl p-5 border border-slate-700"><h3 className="text-white font-bold mb-4 flex items-center gap-2"><List size={18}/> {t.steps}</h3>{platform.steps.map((s,i) => <div key={i} className="text-slate-300 text-sm mb-2">{i+1}. {s}</div>)}</div>
       </div>
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-900/90 backdrop-blur z-50 max-w-md mx-auto">
@@ -193,22 +159,19 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
   const [selectedAccId, setSelectedAccId] = useState('');
 
   const banks = BANK_OPTIONS[lang] || BANK_OPTIONS['en'];
-  // Ensure we filter out bad data in frontend just in case
-  const accounts = (user.bankAccounts || []).filter(acc => acc.bankName && acc.accountNumber);
-  const hasAccounts = accounts.length > 0;
-  const transactions = user.transactions || [];
+  const hasAccounts = user.bankAccounts && user.bankAccounts.length > 0;
 
   useEffect(() => {
       if (hasAccounts && !selectedAccId) {
-          setSelectedAccId(accounts[0].id);
+          setSelectedAccId(user.bankAccounts[0].id);
       }
-  }, [hasAccounts, accounts, selectedAccId]);
+  }, [hasAccounts, user.bankAccounts]);
 
   return (
     <div className="min-h-screen bg-slate-900 pb-20">
        {modal === 'bind' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-6 border border-slate-700 animate-entry">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-6 border border-slate-700">
             <h3 className="text-xl font-bold text-white mb-4">{t.addAccount}</h3>
             <div className="space-y-4">
               <div>
@@ -231,14 +194,14 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
 
        {modal === 'withdraw' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-6 border border-slate-700 animate-entry">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-6 border border-slate-700">
             <h3 className="text-xl font-bold text-white mb-4">{t.confirmWithdraw}</h3>
             {hasAccounts ? (
                 <div className="space-y-4">
                     <div>
                         <label className="text-slate-400 text-xs uppercase block mb-1">{t.selectAccount}</label>
                         <select value={selectedAccId} onChange={e => setSelectedAccId(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white">
-                            {accounts.map(acc => (
+                            {user.bankAccounts.map(acc => (
                                 <option key={acc.id} value={acc.id}>{acc.bankName} - {acc.accountNumber}</option>
                             ))}
                         </select>
@@ -258,8 +221,8 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
         </div>
         <div className="bg-white/5 backdrop-blur-md rounded-2xl p-4 border border-white/10">
            <div className="flex justify-between mb-4">
-             <div><p className="text-indigo-200 text-xs uppercase mb-1">{t.balance}</p><h2 className="text-3xl font-bold text-white">{formatMoney(user.balance, user.currency)}</h2></div>
-             <div className="text-right"><p className="text-slate-400 text-xs uppercase mb-1">{t.totalEarnings}</p><h2 className="text-xl font-bold text-yellow-400">{formatMoney(user.totalEarnings, user.currency)}</h2></div>
+             <div><p className="text-indigo-200 text-xs uppercase mb-1">{t.balance}</p><h2 className="text-3xl font-bold text-white">{formatMoney(user.balance, lang)}</h2></div>
+             <div className="text-right"><p className="text-slate-400 text-xs uppercase mb-1">{t.totalEarnings}</p><h2 className="text-xl font-bold text-yellow-400">{formatMoney(user.totalEarnings, lang)}</h2></div>
            </div>
            <div className="flex space-x-3">
              <button onClick={() => setModal('withdraw')} className="flex-1 bg-yellow-500 text-slate-900 py-2.5 rounded-lg font-bold text-sm hover:bg-yellow-400 shadow-lg">{t.withdraw}</button>
@@ -271,26 +234,30 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
       <div className="p-4 space-y-4">
          {/* Bank Card Display - Horizontal Scroll */}
          <h3 className="text-sm font-bold text-slate-400 uppercase">My Accounts</h3>
-            <div className="flex space-x-4 overflow-x-auto pb-4 no-scrollbar">
-                {hasAccounts ? accounts.map(acc => (
+         {hasAccounts ? (
+            <div className="flex space-x-4 overflow-x-auto pb-2 no-scrollbar">
+                {user.bankAccounts.map(acc => (
                      <div key={acc.id} className={`flex-shrink-0 w-64 rounded-xl p-6 shadow-lg text-white relative overflow-hidden h-36 flex flex-col justify-between ${acc.type === 'ewallet' ? 'bg-gradient-to-r from-green-600 to-teal-700' : 'bg-gradient-to-r from-blue-600 to-indigo-700'}`}>
                         <div className="relative z-10 flex justify-between items-start"><span className="font-bold text-lg">{acc.bankName}</span><span className="text-xs bg-white/20 px-2 py-1 rounded uppercase">{acc.type}</span></div>
                         <div className="relative z-10 font-mono text-lg tracking-wider">{acc.accountNumber}</div>
                         <div className="relative z-10 text-sm opacity-80">{acc.accountName}</div>
                      </div>
-                )) : null}
+                ))}
                  <div onClick={() => setModal('bind')} className="flex-shrink-0 w-16 h-36 border-2 border-dashed border-slate-700 rounded-xl flex items-center justify-center text-slate-500 cursor-pointer hover:bg-slate-800"><Plus size={24} /></div>
             </div>
+         ) : (
+            <div onClick={() => setModal('bind')} className="border-2 border-dashed border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:bg-slate-800"><Plus size={24} /><span className="text-sm font-bold mt-2">{t.addAccount}</span></div>
+         )}
 
          {/* Transactions */}
          <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
             <div className="p-4 border-b border-slate-700 font-bold text-white flex items-center gap-2"><History size={16} /> {t.transactions}</div>
             <div className="max-h-60 overflow-y-auto">
-                {transactions.length === 0 && <div className="p-4 text-center text-slate-500 text-xs">No transactions</div>}
-                {transactions.map(tx => (
+                {user.transactions.length === 0 && <div className="p-4 text-center text-slate-500 text-xs">No transactions</div>}
+                {user.transactions.map(tx => (
                     <div key={tx.id} className="p-3 border-b border-slate-700 last:border-0 flex justify-between items-center">
                         <div><div className="text-white text-sm">{tx.description}</div><div className="text-[10px] text-slate-500">{new Date(tx.date).toLocaleDateString()}</div></div>
-                        <div className={`font-mono text-sm font-bold ${tx.amount > 0 ? 'text-green-400' : 'text-red-400'}`}>{tx.amount > 0 ? '+' : ''}{formatMoney(tx.amount, user.currency)}</div>
+                        <div className={`font-mono text-sm font-bold ${tx.amount > 0 ? 'text-green-400' : 'text-red-400'}`}>{tx.amount > 0 ? '+' : ''}{formatMoney(tx.amount, lang)}</div>
                     </div>
                 ))}
             </div>
@@ -302,13 +269,7 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
 
 export const MyTasksView: React.FC<{ user: User; onSubmitProof: (taskId: string, img: string) => void; t: any; lang: Language }> = ({ user, onSubmitProof, t, lang }) => {
   const [activeTab, setActiveTab] = useState<'ongoing' | 'reviewing' | 'completed'>('ongoing');
-  // Safe access to myTasks and strict checking
-  const myTasks = user.myTasks || [];
-  
-  const tasks = myTasks.filter(task => {
-    // Ensure task object exists and has status property
-    if (!task || !task.status) return false;
-
+  const tasks = user.myTasks.filter(task => {
     if (activeTab === 'ongoing') return task.status === 'ongoing';
     if (activeTab === 'reviewing') return task.status === 'reviewing';
     return task.status === 'completed' || task.status === 'rejected';
@@ -327,8 +288,8 @@ export const MyTasksView: React.FC<{ user: User; onSubmitProof: (taskId: string,
            {tasks.map(task => (
              <div key={task.id} className={`bg-slate-800 rounded-xl p-4 border shadow-md ${task.status === 'ongoing' ? 'border-indigo-500/50' : 'border-slate-700'}`}>
                <div className="flex space-x-3 mb-3">
-                 <img src={task.logoUrl || 'https://via.placeholder.com/50'} className="w-12 h-12 rounded-lg bg-slate-700" />
-                 <div><h3 className="font-bold text-white">{task.platformName}</h3><span className="text-yellow-400 text-sm font-bold">{t.reward}: {formatMoney(task.rewardAmount, user.currency)}</span></div>
+                 <img src={task.logoUrl} className="w-12 h-12 rounded-lg bg-slate-700" />
+                 <div><h3 className="font-bold text-white">{task.platformName}</h3><span className="text-yellow-400 text-sm font-bold">{t.reward}: {formatMoney(task.rewardAmount, lang)}</span></div>
                </div>
                {task.status === 'ongoing' && (
                  <div className="mt-2 pt-3 border-t border-slate-700">
@@ -352,15 +313,14 @@ export const ReferralView: React.FC<{ user: User; users: User[]; t: any; lang: L
     const referralLink = `https://betbounty.app/reg?c=${user.referralCode}`;
     const copyToClipboard = () => { navigator.clipboard.writeText(referralLink); alert(t.copied); };
     
-    // Calculate Team Stats - Safe access
+    // Calculate Team Stats
     const level1 = users.filter(u => u.referrerId === user.id);
     const level1Ids = level1.map(u => u.id);
     const level2 = users.filter(u => u.referrerId && level1Ids.includes(u.referrerId));
     const level2Ids = level2.map(u => u.id);
     const level3 = users.filter(u => u.referrerId && level2Ids.includes(u.referrerId));
 
-    const transactions = user.transactions || [];
-    const todayComms = transactions
+    const todayComms = user.transactions
         .filter(tx => tx.type === 'referral_bonus' && new Date(tx.date).toDateString() === new Date().toDateString())
         .reduce((sum, tx) => sum + tx.amount, 0);
 
@@ -382,7 +342,7 @@ export const ReferralView: React.FC<{ user: User; users: User[]; t: any; lang: L
            
            <div className="bg-slate-900/50 p-4 rounded-xl mb-4">
                <div className="grid grid-cols-2 gap-4 text-left">
-                   <div><p className="text-xs text-slate-400">{t.todayStats}</p><p className="text-xl font-bold text-yellow-400">{formatMoney(todayComms, user.currency)}</p></div>
+                   <div><p className="text-xs text-slate-400">{t.todayStats}</p><p className="text-xl font-bold text-yellow-400">{formatMoney(todayComms, lang)}</p></div>
                    <div><p className="text-xs text-slate-400">{t.totalInvited}</p><p className="text-xl font-bold text-white">{level1.length + level2.length + level3.length}</p></div>
                </div>
            </div>

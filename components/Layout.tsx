@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Users, User, Headset, Dices, ClipboardList, Bell, Mail, Send } from 'lucide-react';
+import { Home, Users, User, Headset, Sparkles, ClipboardList, Bell, Mail, Send } from 'lucide-react';
 import { Language } from '../types';
 import { TRANSLATIONS } from '../constants';
 import LanguageSwitcher from './LanguageSwitcher';
@@ -41,7 +41,7 @@ const Layout: React.FC<Props> = ({ children, lang, setLang, telegramLink }) => {
       <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 py-3 flex justify-between items-center">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center shadow-lg shadow-yellow-500/20 flex-shrink-0">
-             <Dices size={18} className="text-white" />
+             <Sparkles size={18} className="text-white" />
           </div>
           <h1 className="font-bold text-lg bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent hidden sm:block">
             {t.appName}
