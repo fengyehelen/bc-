@@ -42,8 +42,15 @@ export interface User {
   myTasks: UserTask[];
   registrationDate: string;
   bankInfo?: string;
-  role: 'user' | 'merchant';
+  role: 'user' | 'admin';
   notifications: number; // Unread count
+}
+
+export interface Admin {
+  id: string;
+  username: string;
+  password: string; // In a real app, this should be hashed
+  role: 'super_admin' | 'editor';
 }
 
 export interface Activity {

@@ -1,35 +1,53 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Helper to get AI instance with latest key
+const getAI = () => {
+  return new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+};
 
-// Generate a creative name for a new gambling platform (mock admin feature)
-export const generatePlatformName = async (keywords: string): Promise<string> => {
+// Generate a creative name/description for a new gambling platform
+export const generatePlatformInfo = async (keywords: string): Promise<{ name: string, description: string }> => {
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Generate a catchy, short, and lucky name for a gambling app in Southeast Asia based on these keywords: ${keywords}. Return only the name.`,
+      contents: `You are a creative marketing assistant for a gaming platform aggregator. 
+      Based on these keywords: "${keywords}", generate a JSON object with two fields:
+      1. "name": A catchy, short, and lucky name for a gambling app (max 3 words).
+      2. "description": A short, exciting description (max 15 words) emphasizing rewards and winning.
+      Return ONLY the JSON string.`,
+      config: {
+        responseMimeType: 'application/json'
+      }
     });
-    return response.text?.trim() || 'LuckyBet';
+    
+    const text = response.text?.trim();
+    if (text) {
+        return JSON.parse(text);
+    }
+    return { name: 'LuckyWin 888', description: 'Experience the thrill of winning big today!' };
   } catch (error) {
     console.error("Gemini Name Error:", error);
-    return 'LuckyStar Casino';
+    return { name: 'Royal Bet', description: 'The best platform for winners.' };
   }
 };
 
-// Generate a logo description or mock logo generation (since real image gen returns bytes)
-// We will use gemini-2.5-flash-image for image generation as per requirements
+// Generate a logo using Imagen 2.5 (gemini-2.5-flash-image)
 export const generatePlatformLogo = async (prompt: string): Promise<string> => {
   try {
     // Check if API key is present
     if (!process.env.API_KEY) {
         console.warn("No API Key, returning placeholder");
-        return 'https://picsum.photos/200/200?random=99';
+        return 'https://picsum.photos/200/200?random=' + Math.floor(Math.random() * 1000);
     }
 
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
-        parts: [{ text: `A modern, sleek, high quality logo for a gambling app. Gold and red colors. Theme: ${prompt}` }]
+        parts: [{ text: `Design a simple, high-contrast, app icon logo for a gambling/gaming app. 
+        Style: Modern, vector art, gold and red colors, minimalist. 
+        Theme/Symbol: ${prompt}` }]
       }
     });
 
@@ -40,12 +58,10 @@ export const generatePlatformLogo = async (prompt: string): Promise<string> => {
       }
     }
     
-    // Fallback if no image part found but text exists (unlikely for image model but good safety)
-    return 'https://picsum.photos/200/200?random=100';
+    return 'https://picsum.photos/200/200?random=' + Math.floor(Math.random() * 1000);
 
   } catch (error) {
     console.error("Gemini Logo Error:", error);
-    // Fallback image if API fails or quota exceeded
-    return 'https://picsum.photos/200/200?random=101';
+    return 'https://picsum.photos/200/200?random=' + Math.floor(Math.random() * 1000);
   }
 };
