@@ -10,9 +10,9 @@ import {
 } from 'lucide-react';
 import Layout from './Layout';
 
-const formatMoney = (amount: number, lang: Language) => {
-  const config = LANGUAGES[lang];
-  return `${config.currency} ${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+// Format using User's Currency, not language setting
+const formatMoney = (amount: number, currencySymbol: string) => {
+  return `${currencySymbol} ${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 };
 
 // --- USER LOGIN ---
@@ -105,14 +105,15 @@ export const UserLogin: React.FC<{ onAuth: (p: string, pw: string, isReg: boolea
 };
 
 // --- HOME VIEW ---
-export const HomeView: React.FC<{ platforms: Platform[]; t: any; setSort: (s: SortOption) => void; sort: SortOption; lang: Language; activities: Activity[]; }> = ({ platforms, t, setSort, sort, lang, activities }) => {
+export const HomeView: React.FC<{ platforms: Platform[]; t: any; setSort: (s: SortOption) => void; sort: SortOption; lang: Language; activities: Activity[]; user: User; }> = ({ platforms, t, setSort, sort, lang, activities, user }) => {
   const navigate = useNavigate();
-  const filteredPlatforms = React.useMemo(() => platforms.filter(p => p.targetCountries.includes(lang)), [platforms, lang]);
+  // Filter only online platforms and target countries
+  const filteredPlatforms = React.useMemo(() => platforms.filter(p => p.status === 'online' && p.targetCountries.includes(lang)), [platforms, lang]);
   
   return (
     <div className="p-4 space-y-4">
       {/* Banner */}
-      {activities.filter(a => a.targetCountries.includes(lang)).length > 0 && (
+      {activities.filter(a => a.active && a.targetCountries.includes(lang)).length > 0 && (
          <div className="relative w-full h-40 rounded-2xl overflow-hidden shadow-lg mb-6 cursor-pointer" onClick={() => navigate(`/activity/${activities[0].id}`)}>
            <img src={activities[0].imageUrl} className="w-full h-full object-cover" />
            <div className="absolute bottom-0 inset-x-0 bg-black/60 p-2 text-white font-bold">{activities[0].title}</div>
@@ -133,7 +134,7 @@ export const HomeView: React.FC<{ platforms: Platform[]; t: any; setSort: (s: So
               <img src={p.logoUrl} className="w-20 h-20 rounded-xl bg-slate-700 object-cover" />
               <div className="flex-1">
                  <h3 className="font-bold text-white leading-tight">{p.name}</h3>
-                 <span className="text-yellow-400 font-bold text-lg">{formatMoney(p.rewardAmount, lang)}</span>
+                 <span className="text-yellow-400 font-bold text-lg">{formatMoney(p.rewardAmount, user.currency)}</span>
                  <div className="flex justify-end mt-2"><button className="bg-indigo-600 text-white text-xs px-3 py-1 rounded-full">{t.startTask}</button></div>
               </div>
             </div>
@@ -144,7 +145,7 @@ export const HomeView: React.FC<{ platforms: Platform[]; t: any; setSort: (s: So
   );
 };
 
-export const TaskDetailView: React.FC<{ platforms: Platform[]; onStartTask: (p: Platform) => void; t: any; lang: Language; }> = ({ platforms, onStartTask, t, lang }) => {
+export const TaskDetailView: React.FC<{ platforms: Platform[]; onStartTask: (p: Platform) => void; t: any; lang: Language; user: User; }> = ({ platforms, onStartTask, t, lang, user }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const platform = platforms.find(p => p.id === id);
@@ -154,7 +155,7 @@ export const TaskDetailView: React.FC<{ platforms: Platform[]; onStartTask: (p: 
     <div className="bg-slate-900 min-h-screen pb-32">
       <div className="sticky top-0 bg-slate-900/95 backdrop-blur z-20 border-b border-slate-800 p-4 flex items-center space-x-3"><button onClick={() => navigate(-1)} className="text-slate-300"><ArrowLeft size={24} /></button><h1 className="text-white font-bold text-lg flex-1 truncate">{platform.name}</h1></div>
       <div className="p-4 space-y-6">
-        <div className="flex items-center space-x-4"><img src={platform.logoUrl} className="w-20 h-20 rounded-xl bg-slate-800" /><div><h2 className="text-2xl font-bold text-yellow-400">{formatMoney(platform.rewardAmount, lang)}</h2><p className="text-slate-400 text-sm">{platform.description}</p></div></div>
+        <div className="flex items-center space-x-4"><img src={platform.logoUrl} className="w-20 h-20 rounded-xl bg-slate-800" /><div><h2 className="text-2xl font-bold text-yellow-400">{formatMoney(platform.rewardAmount, user.currency)}</h2><p className="text-slate-400 text-sm">{platform.description}</p></div></div>
         <div className="bg-slate-800 rounded-xl p-5 border border-slate-700"><h3 className="text-white font-bold mb-4 flex items-center gap-2"><List size={18}/> {t.steps}</h3>{platform.steps.map((s,i) => <div key={i} className="text-slate-300 text-sm mb-2">{i+1}. {s}</div>)}</div>
       </div>
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-900/90 backdrop-blur z-50 max-w-md mx-auto">
@@ -185,8 +186,8 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
   const [selectedAccId, setSelectedAccId] = useState('');
 
   const banks = BANK_OPTIONS[lang] || BANK_OPTIONS['en'];
-  // Safety check for legacy data
-  const accounts = user.bankAccounts || [];
+  // Ensure we filter out bad data in frontend just in case
+  const accounts = (user.bankAccounts || []).filter(acc => acc.bankName && acc.accountNumber);
   const hasAccounts = accounts.length > 0;
   const transactions = user.transactions || [];
 
@@ -194,7 +195,7 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
       if (hasAccounts && !selectedAccId) {
           setSelectedAccId(accounts[0].id);
       }
-  }, [hasAccounts, accounts]);
+  }, [hasAccounts, accounts, selectedAccId]);
 
   return (
     <div className="min-h-screen bg-slate-900 pb-20">
@@ -250,8 +251,8 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
         </div>
         <div className="bg-white/5 backdrop-blur-md rounded-2xl p-4 border border-white/10">
            <div className="flex justify-between mb-4">
-             <div><p className="text-indigo-200 text-xs uppercase mb-1">{t.balance}</p><h2 className="text-3xl font-bold text-white">{formatMoney(user.balance, lang)}</h2></div>
-             <div className="text-right"><p className="text-slate-400 text-xs uppercase mb-1">{t.totalEarnings}</p><h2 className="text-xl font-bold text-yellow-400">{formatMoney(user.totalEarnings, lang)}</h2></div>
+             <div><p className="text-indigo-200 text-xs uppercase mb-1">{t.balance}</p><h2 className="text-3xl font-bold text-white">{formatMoney(user.balance, user.currency)}</h2></div>
+             <div className="text-right"><p className="text-slate-400 text-xs uppercase mb-1">{t.totalEarnings}</p><h2 className="text-xl font-bold text-yellow-400">{formatMoney(user.totalEarnings, user.currency)}</h2></div>
            </div>
            <div className="flex space-x-3">
              <button onClick={() => setModal('withdraw')} className="flex-1 bg-yellow-500 text-slate-900 py-2.5 rounded-lg font-bold text-sm hover:bg-yellow-400 shadow-lg">{t.withdraw}</button>
@@ -263,20 +264,16 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
       <div className="p-4 space-y-4">
          {/* Bank Card Display - Horizontal Scroll */}
          <h3 className="text-sm font-bold text-slate-400 uppercase">My Accounts</h3>
-         {hasAccounts ? (
             <div className="flex space-x-4 overflow-x-auto pb-4 no-scrollbar">
-                {accounts.map(acc => (
+                {hasAccounts ? accounts.map(acc => (
                      <div key={acc.id} className={`flex-shrink-0 w-64 rounded-xl p-6 shadow-lg text-white relative overflow-hidden h-36 flex flex-col justify-between ${acc.type === 'ewallet' ? 'bg-gradient-to-r from-green-600 to-teal-700' : 'bg-gradient-to-r from-blue-600 to-indigo-700'}`}>
                         <div className="relative z-10 flex justify-between items-start"><span className="font-bold text-lg">{acc.bankName}</span><span className="text-xs bg-white/20 px-2 py-1 rounded uppercase">{acc.type}</span></div>
                         <div className="relative z-10 font-mono text-lg tracking-wider">{acc.accountNumber}</div>
                         <div className="relative z-10 text-sm opacity-80">{acc.accountName}</div>
                      </div>
-                ))}
+                )) : null}
                  <div onClick={() => setModal('bind')} className="flex-shrink-0 w-16 h-36 border-2 border-dashed border-slate-700 rounded-xl flex items-center justify-center text-slate-500 cursor-pointer hover:bg-slate-800"><Plus size={24} /></div>
             </div>
-         ) : (
-            <div onClick={() => setModal('bind')} className="border-2 border-dashed border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:bg-slate-800"><Plus size={24} /><span className="text-sm font-bold mt-2">{t.addAccount}</span></div>
-         )}
 
          {/* Transactions */}
          <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
@@ -286,7 +283,7 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
                 {transactions.map(tx => (
                     <div key={tx.id} className="p-3 border-b border-slate-700 last:border-0 flex justify-between items-center">
                         <div><div className="text-white text-sm">{tx.description}</div><div className="text-[10px] text-slate-500">{new Date(tx.date).toLocaleDateString()}</div></div>
-                        <div className={`font-mono text-sm font-bold ${tx.amount > 0 ? 'text-green-400' : 'text-red-400'}`}>{tx.amount > 0 ? '+' : ''}{formatMoney(tx.amount, lang)}</div>
+                        <div className={`font-mono text-sm font-bold ${tx.amount > 0 ? 'text-green-400' : 'text-red-400'}`}>{tx.amount > 0 ? '+' : ''}{formatMoney(tx.amount, user.currency)}</div>
                     </div>
                 ))}
             </div>
@@ -298,10 +295,13 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
 
 export const MyTasksView: React.FC<{ user: User; onSubmitProof: (taskId: string, img: string) => void; t: any; lang: Language }> = ({ user, onSubmitProof, t, lang }) => {
   const [activeTab, setActiveTab] = useState<'ongoing' | 'reviewing' | 'completed'>('ongoing');
-  // Safe access to myTasks
+  // Safe access to myTasks and strict checking
   const myTasks = user.myTasks || [];
   
   const tasks = myTasks.filter(task => {
+    // Ensure task object exists and has status property
+    if (!task || !task.status) return false;
+
     if (activeTab === 'ongoing') return task.status === 'ongoing';
     if (activeTab === 'reviewing') return task.status === 'reviewing';
     return task.status === 'completed' || task.status === 'rejected';
@@ -320,8 +320,8 @@ export const MyTasksView: React.FC<{ user: User; onSubmitProof: (taskId: string,
            {tasks.map(task => (
              <div key={task.id} className={`bg-slate-800 rounded-xl p-4 border shadow-md ${task.status === 'ongoing' ? 'border-indigo-500/50' : 'border-slate-700'}`}>
                <div className="flex space-x-3 mb-3">
-                 <img src={task.logoUrl} className="w-12 h-12 rounded-lg bg-slate-700" />
-                 <div><h3 className="font-bold text-white">{task.platformName}</h3><span className="text-yellow-400 text-sm font-bold">{t.reward}: {formatMoney(task.rewardAmount, lang)}</span></div>
+                 <img src={task.logoUrl || 'https://via.placeholder.com/50'} className="w-12 h-12 rounded-lg bg-slate-700" />
+                 <div><h3 className="font-bold text-white">{task.platformName}</h3><span className="text-yellow-400 text-sm font-bold">{t.reward}: {formatMoney(task.rewardAmount, user.currency)}</span></div>
                </div>
                {task.status === 'ongoing' && (
                  <div className="mt-2 pt-3 border-t border-slate-700">
@@ -375,7 +375,7 @@ export const ReferralView: React.FC<{ user: User; users: User[]; t: any; lang: L
            
            <div className="bg-slate-900/50 p-4 rounded-xl mb-4">
                <div className="grid grid-cols-2 gap-4 text-left">
-                   <div><p className="text-xs text-slate-400">{t.todayStats}</p><p className="text-xl font-bold text-yellow-400">{formatMoney(todayComms, lang)}</p></div>
+                   <div><p className="text-xs text-slate-400">{t.todayStats}</p><p className="text-xl font-bold text-yellow-400">{formatMoney(todayComms, user.currency)}</p></div>
                    <div><p className="text-xs text-slate-400">{t.totalInvited}</p><p className="text-xl font-bold text-white">{level1.length + level2.length + level3.length}</p></div>
                </div>
            </div>

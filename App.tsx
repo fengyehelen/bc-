@@ -28,14 +28,25 @@ const App: React.FC = () => {
   useEffect(() => {
     const rawUsers = MockDb.getUsers();
     // Fix missing fields for legacy users to prevent crashes
-    const sanitizedUsers = rawUsers.map(u => ({
-        ...u,
-        transactions: u.transactions || [],
-        messages: u.messages || [],
-        myTasks: u.myTasks || [],
-        // @ts-ignore - Handle legacy bankInfo conversion
-        bankAccounts: u.bankAccounts || (u.bankInfo ? [{id:'legacy', ...u.bankInfo}] : [])
-    }));
+    const sanitizedUsers = rawUsers.map(u => {
+        // Handle legacy bank conversion and remove empty/invalid entries
+        let safeAccounts = u.bankAccounts || [];
+        // @ts-ignore
+        if (!u.bankAccounts && u.bankInfo && Object.keys(u.bankInfo).length > 0) {
+            // @ts-ignore
+             safeAccounts = [{id:'legacy', ...u.bankInfo}];
+        }
+        safeAccounts = safeAccounts.filter(acc => acc.bankName && acc.accountNumber);
+
+        return {
+            ...u,
+            transactions: u.transactions || [],
+            messages: u.messages || [],
+            myTasks: u.myTasks || [],
+            bankAccounts: safeAccounts,
+            currency: u.currency || LANGUAGES['en'].currency // Default fallback
+        };
+    });
     setUsers(sanitizedUsers);
 
     setPlatforms(MockDb.getPlatforms());
@@ -79,12 +90,19 @@ const App: React.FC = () => {
            }
         }
 
+        // Determine Country specific settings
+        // Since we don't have IP geo-location in this mock, we use the current 'lang' setting as the user's "country" for currency/balance.
+        const userCountry = lang; 
+        const currencySymbol = LANGUAGES[userCountry].currency;
+        const startBalance = config.initialBalance[userCountry] || 0;
+
         const newUser: User = {
           id: Math.random().toString(36).substr(2, 8),
           phone: phone, 
           password: password,
-          balance: config.initialBalance, 
-          totalEarnings: config.initialBalance, 
+          balance: startBalance,
+          currency: currencySymbol, // Lock currency to registration country
+          totalEarnings: startBalance, 
           referralCode: 'U'+Math.floor(Math.random()*99999), 
           referrerId: referrerId,
           invitedCount: 0, 
@@ -95,8 +113,8 @@ const App: React.FC = () => {
           messages: [{
             id: 'm1', title: 'Welcome', content: 'Welcome to OddsHub! Start earning today.', date: new Date().toISOString(), read: false
           }],
-          transactions: config.initialBalance > 0 ? [{
-            id: 'tx_init', type: 'system_bonus', amount: config.initialBalance, date: new Date().toISOString(), description: 'Registration Bonus', status: 'success'
+          transactions: startBalance > 0 ? [{
+            id: 'tx_init', type: 'system_bonus', amount: startBalance, date: new Date().toISOString(), description: 'Registration Bonus', status: 'success'
           }] : []
         };
         
@@ -119,7 +137,8 @@ const App: React.FC = () => {
         const safeUser = {
             ...existingUser,
             transactions: existingUser.transactions || [],
-            bankAccounts: existingUser.bankAccounts || []
+            bankAccounts: (existingUser.bankAccounts || []).filter(acc => acc.bankName && acc.accountNumber),
+            currency: existingUser.currency || LANGUAGES['en'].currency
         };
         
         setUser(safeUser);
@@ -130,11 +149,17 @@ const App: React.FC = () => {
   const handleStartTask = (p: Platform) => {
     if (!user) return;
     if (user.myTasks.some(t => t.platformId === p.id)) return; 
+    
     const newTask: UserTask = {
        id: Date.now().toString(),
-       platformId: p.id, platformName: p.name, logoUrl: p.logoUrl, rewardAmount: p.rewardAmount,
-       status: 'ongoing', startTime: new Date().toISOString()
+       platformId: p.id, 
+       platformName: p.name, 
+       logoUrl: p.logoUrl, 
+       rewardAmount: p.rewardAmount,
+       status: 'ongoing', 
+       startTime: new Date().toISOString()
     };
+    
     const updatedUser = { ...user, myTasks: [newTask, ...user.myTasks] };
     setUser(updatedUser);
     setUsers(users.map(u => u.id === user.id ? updatedUser : u));
@@ -254,7 +279,14 @@ const App: React.FC = () => {
 
   const handleWithdraw = (amount: number, accountId: string) => {
       if (!user) return;
-      if (amount < config.minWithdrawAmount) return alert(`${t.minWithdrawErr} ${config.minWithdrawAmount}`);
+      // Get country code from currency or generic fallback (Here we assume user.currency is linked to a country in LANGUAGES, if not fallback to 'en')
+      // A better way is to store registrationCountry on User, but for now we try to deduce or fallback.
+      // Since we lock currency symbol, we can try to find the key in LANGUAGES.
+      const userCountryEntry = Object.entries(LANGUAGES).find(([k, v]) => v.currency === user.currency);
+      const countryCode = userCountryEntry ? userCountryEntry[0] : 'en';
+      const minWithdraw = config.minWithdrawAmount[countryCode] || 100;
+
+      if (amount < minWithdraw) return alert(`${t.minWithdrawErr} ${minWithdraw}`);
       if (user.balance < amount) return alert(t.insufficient);
       
       const account = user.bankAccounts.find(a => a.id === accountId);
@@ -287,6 +319,22 @@ const App: React.FC = () => {
       alert("Message Sent!");
   };
 
+  const handleManageContent = (type: 'task'|'activity', id: string, action: 'delete'|'toggle') => {
+      if (type === 'task') {
+          if (action === 'delete') {
+              setPlatforms(platforms.filter(p => p.id !== id));
+          } else {
+              setPlatforms(platforms.map(p => p.id === id ? { ...p, status: p.status === 'online' ? 'offline' : 'online' } : p));
+          }
+      } else {
+          if (action === 'delete') {
+              setActivities(activities.filter(a => a.id !== id));
+          } else {
+              setActivities(activities.map(a => a.id === id ? { ...a, active: !a.active } : a));
+          }
+      }
+  };
+
   return (
     <Router>
       <Routes>
@@ -304,6 +352,7 @@ const App: React.FC = () => {
               addActivity={(a) => setActivities([...activities, a])}
               addTask={(task) => setPlatforms([...platforms, task])}
               addAdmin={(a) => setAdmins([...admins, a])}
+              manageContent={handleManageContent}
               lang={lang}
             />
         } />
@@ -314,11 +363,11 @@ const App: React.FC = () => {
 
         {user ? (
           <Route path="/" element={<Layout lang={lang} setLang={setLang} telegramLink={config.telegramLinks[lang] || config.telegramLinks['en']}><Outlet /></Layout>}>
-            <Route index element={<HomeView platforms={platforms} activities={activities} t={t} setSort={setSort} sort={sort} lang={lang} />} />
+            <Route index element={<HomeView platforms={platforms} activities={activities} t={t} setSort={setSort} sort={sort} lang={lang} user={user} />} />
             <Route path="referral" element={<ReferralView user={user} users={users} t={t} lang={lang} />} />
             <Route path="tasks" element={<MyTasksView user={user} onSubmitProof={handleSubmitProof} t={t} lang={lang} />} />
             <Route path="profile" element={<ProfileView user={user} t={t} logout={() => setUser(null)} lang={lang} onBindCard={handleBindCard} onWithdraw={handleWithdraw} />} />
-            <Route path="task-detail/:id" element={<TaskDetailView platforms={platforms} onStartTask={handleStartTask} t={t} lang={lang} />} />
+            <Route path="task-detail/:id" element={<TaskDetailView platforms={platforms} onStartTask={handleStartTask} t={t} lang={lang} user={user} />} />
             <Route path="activity/:id" element={<ActivityDetailView activities={activities} t={t} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

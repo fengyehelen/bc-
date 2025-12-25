@@ -3,7 +3,7 @@ import { User, Platform, Activity, Admin, SystemConfig, Language } from '../type
 import { generatePlatformInfo, generatePlatformLogo } from '../services/geminiService';
 import { 
   Shield, CheckCircle, User as UserIcon, List, Image, Key, LogOut, ArrowLeft,
-  LayoutDashboard, Sparkles, Wand2, Zap, Lock, Settings, Mail, Send
+  LayoutDashboard, Sparkles, Wand2, Zap, Lock, Settings, Mail, Send, Trash2, Power
 } from 'lucide-react';
 
 interface AdminAppProps {
@@ -19,6 +19,7 @@ interface AdminAppProps {
   addActivity: (act: Activity) => void;
   addTask: (t: Platform) => void;
   addAdmin: (a: Admin) => void;
+  manageContent: (type: 'task'|'activity', id: string, action: 'delete'|'toggle') => void;
   lang: any;
 }
 
@@ -27,7 +28,9 @@ const COUNTRIES = [
   { value: 'th', label: 'Thailand' },
   { value: 'vi', label: 'Vietnam' },
   { value: 'ms', label: 'Malaysia' },
-  { value: 'tl', label: 'Philippines' }
+  { value: 'tl', label: 'Philippines' },
+  { value: 'en', label: 'Global' },
+  { value: 'zh', label: 'China' }
 ];
 
 // --- ADMIN LOGIN ---
@@ -64,6 +67,9 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
   const [newTask, setNewTask] = useState<Partial<Platform>>({ name: '', description: '', rules: '', firstDepositAmount: 0, rewardAmount: 0, targetCountries: ['id'], steps: ['Download', 'Register', 'Deposit'], downloadLink: '' });
   const [newAdmin, setNewAdmin] = useState({ username: '', password: '', role: 'editor' });
   const [msgData, setMsgData] = useState({ userId: 'all', title: '', content: '' });
+  
+  // User Sort State
+  const [userSort, setUserSort] = useState<'reg' | 'bal'>('reg');
 
   useEffect(() => { checkApiKey(); }, []);
 
@@ -139,8 +145,31 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
       props.sendMessage(msgData.userId, msgData.title, msgData.content);
       setMsgData({ userId: 'all', title: '', content: '' });
   };
+  
+  const handleConfigChange = (type: 'init' | 'min', country: string, value: string) => {
+      const num = Number(value);
+      if (type === 'init') {
+          props.updateConfig({
+              ...props.config,
+              initialBalance: { ...props.config.initialBalance, [country]: num }
+          });
+      } else {
+           props.updateConfig({
+              ...props.config,
+              minWithdrawAmount: { ...props.config.minWithdrawAmount, [country]: num }
+          });
+      }
+  };
 
-  const auditTasks = props.users.flatMap(u => u.myTasks).filter(t => t.status === 'reviewing');
+  const auditTasks = props.users.flatMap(u => (u.myTasks || []).filter(t => t.status === 'reviewing'));
+  
+  // Sorted Users Logic
+  const sortedUsers = [...props.users].sort((a, b) => {
+      if (userSort === 'bal') {
+          return b.balance - a.balance;
+      }
+      return new Date(b.registrationDate).getTime() - new Date(a.registrationDate).getTime();
+  });
 
   if (!session) return <AdminLogin onLogin={handleLogin} />;
 
@@ -173,7 +202,7 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                 <tbody className="divide-y divide-slate-100">
                    {auditTasks.length === 0 && <tr><td colSpan={4} className="p-12 text-center text-slate-400">All caught up!</td></tr>}
                    {auditTasks.map(task => {
-                      const user = props.users.find(u => u.myTasks.some(t => t.id === task.id));
+                      const user = props.users.find(u => (u.myTasks || []).some(t => t.id === task.id));
                       return (
                        <tr key={task.id}>
                           <td className="p-4"><div className="font-bold">{user?.phone}</div><div className="text-xs text-slate-400">ID: {user?.id}</div></td>
@@ -192,17 +221,33 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
         )}
 
         {view === 'users' && (
-           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-               {props.users.map(u => (
-                  <div key={u.id} className="p-4 rounded-xl border border-slate-200 bg-white">
-                     <div className="flex justify-between mb-2"><span className="font-bold">{u.phone}</span><span className="text-xs bg-slate-100 px-2 py-1 rounded">Pwd: {u.password}</span></div>
-                     <div className="grid grid-cols-2 gap-2 text-sm mb-2">
-                        <div className="bg-slate-50 p-2 rounded">Bal: <span className="font-bold text-green-600">{u.balance}</span></div>
-                        <div className="bg-slate-50 p-2 rounded">Team: {u.invitedCount}</div>
-                     </div>
-                     <button onClick={() => handleResetUserPassword(u.id)} className="text-xs text-indigo-600 border border-indigo-200 px-2 py-1 rounded flex items-center gap-1"><Lock size={10} /> Reset Pwd</button>
-                  </div>
-               ))}
+           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+             <div className="p-4 border-b border-slate-100 flex gap-4">
+                 <span className="text-xs font-bold uppercase py-2">Sort by:</span>
+                 <button onClick={() => setUserSort('reg')} className={`text-xs px-3 py-1 rounded ${userSort === 'reg' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100'}`}>Registration Date</button>
+                 <button onClick={() => setUserSort('bal')} className={`text-xs px-3 py-1 rounded ${userSort === 'bal' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100'}`}>Highest Balance</button>
+             </div>
+             <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr><th className="p-4">Phone/ID</th><th className="p-4">Balance</th><th className="p-4">Team</th><th className="p-4">Reg Date</th><th className="p-4">Actions</th></tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                   {sortedUsers.map(u => (
+                      <tr key={u.id} className="hover:bg-slate-50">
+                         <td className="p-4">
+                             <div className="font-bold text-slate-900">{u.phone}</div>
+                             <div className="text-[10px] text-slate-400">ID: {u.id} | Pwd: {u.password}</div>
+                         </td>
+                         <td className="p-4 font-mono font-bold text-green-600">{u.currency} {u.balance}</td>
+                         <td className="p-4">{u.invitedCount}</td>
+                         <td className="p-4 text-xs text-slate-500">{new Date(u.registrationDate).toLocaleDateString()} {new Date(u.registrationDate).toLocaleTimeString()}</td>
+                         <td className="p-4">
+                             <button onClick={() => handleResetUserPassword(u.id)} className="text-xs border border-slate-300 px-2 py-1 rounded hover:bg-slate-100 flex items-center gap-1"><Lock size={10} /> Reset Pwd</button>
+                         </td>
+                      </tr>
+                   ))}
+                </tbody>
+             </table>
            </div>
         )}
 
@@ -245,7 +290,26 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                         alert('Published');
                      }} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold">Publish</button>
                </div>
-               <div className="grid grid-cols-3 gap-4">{props.tasks.map(t => <div key={t.id} className="bg-white p-4 rounded border"><h3 className="font-bold">{t.name}</h3><span className="text-xs bg-slate-100 px-1">{t.targetCountries.join(', ')}</span></div>)}</div>
+               
+               {/* Task List */}
+               <div className="grid grid-cols-1 gap-3">
+                   {props.tasks.map(t => (
+                       <div key={t.id} className="bg-white p-4 rounded border flex justify-between items-center">
+                           <div className="flex items-center gap-3">
+                               <img src={t.logoUrl} className="w-10 h-10 rounded bg-slate-100" />
+                               <div>
+                                   <h3 className="font-bold">{t.name}</h3>
+                                   <div className="text-xs text-slate-500">{(t.targetCountries || []).join(', ')} | Reward: {t.rewardAmount}</div>
+                               </div>
+                           </div>
+                           <div className="flex items-center gap-2">
+                               <span className={`text-[10px] px-2 py-1 rounded uppercase font-bold ${t.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{t.status}</span>
+                               <button onClick={() => props.manageContent('task', t.id, 'toggle')} className="p-2 hover:bg-slate-100 rounded text-slate-600" title="Toggle Status"><Power size={16}/></button>
+                               <button onClick={() => props.manageContent('task', t.id, 'delete')} className="p-2 hover:bg-red-50 rounded text-red-600" title="Delete"><Trash2 size={16}/></button>
+                           </div>
+                       </div>
+                   ))}
+               </div>
            </div>
         )}
 
@@ -266,7 +330,26 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                  </div>
                  <button onClick={handleAddActivity} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold">Publish</button>
                </div>
-               <div className="grid grid-cols-2 gap-4">{props.activities.map(a => <div key={a.id} className="bg-white p-4 rounded border"><h3 className="font-bold">{a.title}</h3><span className="text-xs">{Array.isArray(a.targetCountries) ? a.targetCountries.join(', ') : ''}</span></div>)}</div>
+
+               {/* Activity List */}
+               <div className="grid grid-cols-1 gap-3">
+                   {(props.activities || []).map(a => (
+                       <div key={a.id} className="bg-white p-4 rounded border flex justify-between items-center">
+                           <div className="flex items-center gap-3">
+                               <img src={a.imageUrl} className="w-16 h-10 object-cover rounded bg-slate-100" />
+                               <div>
+                                   <h3 className="font-bold">{a.title}</h3>
+                                   <div className="text-xs text-slate-500">{(a.targetCountries || []).join(', ')}</div>
+                               </div>
+                           </div>
+                           <div className="flex items-center gap-2">
+                               <span className={`text-[10px] px-2 py-1 rounded uppercase font-bold ${a.active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{a.active ? 'Active' : 'Hidden'}</span>
+                               <button onClick={() => props.manageContent('activity', a.id, 'toggle')} className="p-2 hover:bg-slate-100 rounded text-slate-600" title="Toggle Status"><Power size={16}/></button>
+                               <button onClick={() => props.manageContent('activity', a.id, 'delete')} className="p-2 hover:bg-red-50 rounded text-red-600" title="Delete"><Trash2 size={16}/></button>
+                           </div>
+                       </div>
+                   ))}
+               </div>
            </div>
         )}
 
@@ -274,9 +357,25 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 max-w-2xl">
               <h3 className="font-bold mb-6 text-lg">System Configuration</h3>
               <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                      <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">New User Initial Balance</label><input type="number" value={props.config.initialBalance} onChange={e => props.updateConfig({...props.config, initialBalance: Number(e.target.value)})} className="w-full border p-3 rounded-lg" /></div>
-                      <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Min Withdrawal Amount</label><input type="number" value={props.config.minWithdrawAmount} onChange={e => props.updateConfig({...props.config, minWithdrawAmount: Number(e.target.value)})} className="w-full border p-3 rounded-lg" /></div>
+                  <div className="grid grid-cols-2 gap-8">
+                      <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">New User Bonus</label>
+                          {COUNTRIES.map(c => (
+                             <div key={c.value} className="flex items-center mb-1">
+                                <span className="w-10 text-[10px] font-bold uppercase">{c.value}</span>
+                                <input type="number" value={props.config.initialBalance[c.value] || 0} onChange={e => handleConfigChange('init', c.value, e.target.value)} className="flex-1 border p-1 rounded text-sm" />
+                             </div>
+                          ))}
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Min Withdrawal</label>
+                          {COUNTRIES.map(c => (
+                             <div key={c.value} className="flex items-center mb-1">
+                                <span className="w-10 text-[10px] font-bold uppercase">{c.value}</span>
+                                <input type="number" value={props.config.minWithdrawAmount[c.value] || 0} onChange={e => handleConfigChange('min', c.value, e.target.value)} className="flex-1 border p-1 rounded text-sm" />
+                             </div>
+                          ))}
+                      </div>
                   </div>
                   <div>
                       <h4 className="text-sm font-bold mb-2">Telegram Channels</h4>
