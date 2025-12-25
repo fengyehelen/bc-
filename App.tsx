@@ -349,8 +349,8 @@ const App: React.FC = () => {
               addActivity={(a) => {
                  const safeActivity: Activity = {
                     ...a,
-                    // STRICTLY DEFAULT TO ARRAY IF EMPTY
-                    targetCountries: (Array.isArray(a.targetCountries) && a.targetCountries.length > 0) ? a.targetCountries : ['id']
+                    // FORCE ARRAY RECONSTRUCTION
+                    targetCountries: Array.isArray(a.targetCountries) ? a.targetCountries : ['id']
                  };
                  setActivities([...activities, safeActivity]);
               }}
@@ -358,8 +358,8 @@ const App: React.FC = () => {
               addTask={(task) => {
                  const safeTask: Platform = {
                     ...task,
-                    // STRICTLY DEFAULT TO ARRAY IF EMPTY
-                    targetCountries: (Array.isArray(task.targetCountries) && task.targetCountries.length > 0) ? task.targetCountries : ['id'],
+                    // FORCE ARRAY RECONSTRUCTION
+                    targetCountries: Array.isArray(task.targetCountries) ? task.targetCountries : ['id'],
                     steps: Array.isArray(task.steps) ? task.steps : ['Download', 'Register', 'Deposit']
                  };
                  setPlatforms([...platforms, safeTask]);
