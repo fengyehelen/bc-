@@ -44,21 +44,45 @@ const App: React.FC = () => {
 
   // --- ACTIONS (Passed down to components) ---
 
-  const handleUserLogin = (phone: string) => {
-    let existingUser = users.find(u => u.phone === phone);
-    if (!existingUser) {
-        // Mock Tasks for preview
+  // Enhanced Login Logic: Returns error string if failed, null if success
+  const handleUserAuth = (phone: string, password: string, isRegister: boolean): string | null => {
+    const existingUser = users.find(u => u.phone === phone);
+
+    if (isRegister) {
+        if (existingUser) {
+            return "Account already exists. Please login.";
+        }
+        // Create new user
         const mockTasks: UserTask[] = [
           { id: 't1', platformId: '1', platformName: 'RoyalWin Indonesia', logoUrl: MOCK_PLATFORMS[0].logoUrl, rewardAmount: 15000, status: 'ongoing', startTime: new Date().toISOString() },
         ];
-        existingUser = {
+        const newUser: User = {
           id: Math.random().toString(36).substr(2, 8),
-          phone: phone, balance: 50, totalEarnings: 50, referralCode: 'U'+Math.floor(Math.random()*9999), invitedCount: 0, 
+          phone: phone, 
+          password: password,
+          balance: 50, totalEarnings: 50, referralCode: 'U'+Math.floor(Math.random()*9999), invitedCount: 0, 
           myTasks: mockTasks, registrationDate: new Date().toISOString(), role: 'user', notifications: 2
         };
-        setUsers([...users, existingUser]);
+        setUsers([...users, newUser]);
+        setUser(newUser);
+        return null;
+    } else {
+        // Login
+        if (!existingUser) {
+            return "Account does not exist.";
+        }
+        // Check password (simple string comparison for mock)
+        if (existingUser.password && existingUser.password !== password) {
+            return "Incorrect password.";
+        }
+        // Fallback for old mock users without password
+        if (!existingUser.password && password !== '123456') {
+             return "Please use default password '123456'";
+        }
+        
+        setUser(existingUser);
+        return null;
     }
-    setUser(existingUser);
   };
 
   const handleStartTask = (p: Platform) => {
@@ -100,6 +124,10 @@ const App: React.FC = () => {
      if (user?.id === userId) setUser(updatedUser);
   };
 
+  const updateUserPassword = (userId: string, newPass: string) => {
+      setUsers(users.map(u => u.id === userId ? { ...u, password: newPass } : u));
+  };
+
   const handleBindCard = (bank: string, name: string, no: string) => {
     if (!user) return;
     const updatedUser: User = { ...user, bankInfo: `${bank} - ${name} - ${no}` };
@@ -120,8 +148,11 @@ const App: React.FC = () => {
               tasks={platforms} 
               activities={activities}
               admins={admins}
-              updateTaskStatus={updateTaskStatus} 
-              addActivity={(a) => setActivities([...activities, a])}
+              updateTaskStatus={updateTaskStatus}
+              updateUserPassword={updateUserPassword} 
+              addActivity={(a) => {
+                  setActivities(prev => [...prev, a]);
+              }}
               addTask={(task) => setPlatforms([...platforms, task])}
               addAdmin={(a) => setAdmins([...admins, a])}
               lang={lang}
@@ -135,7 +166,7 @@ const App: React.FC = () => {
            
         {/* Login Route (Standalone, no Layout) */}
         <Route path="/login" element={
-          user ? <Navigate to="/" replace /> : <UserLogin onLogin={handleUserLogin} t={t} lang={lang} />
+          user ? <Navigate to="/" replace /> : <UserLogin onAuth={handleUserAuth} t={t} lang={lang} />
         } />
 
         {/* Protected Routes (With Layout) */}

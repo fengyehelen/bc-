@@ -17,7 +17,7 @@ const formatMoney = (amount: number, lang: Language) => {
 };
 
 // --- USER LOGIN COMPONENT ---
-export const UserLogin: React.FC<{ onLogin: (p: string) => void; t: any; lang: Language }> = ({ onLogin, t, lang }) => {
+export const UserLogin: React.FC<{ onAuth: (p: string, pw: string, isReg: boolean) => string | null; t: any; lang: Language }> = ({ onAuth, t, lang }) => {
   const [isRegister, setIsRegister] = useState(true);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -31,6 +31,14 @@ export const UserLogin: React.FC<{ onLogin: (p: string) => void; t: any; lang: L
         if(prev <= 1) clearInterval(i);
         return prev - 1;
      }), 1000);
+  };
+
+  const handleAuth = () => {
+      if(!phone || !password) return alert("Please fill in phone and password");
+      const error = onAuth(phone, password, isRegister);
+      if(error) {
+          alert(error);
+      }
   };
 
   return (
@@ -69,7 +77,7 @@ export const UserLogin: React.FC<{ onLogin: (p: string) => void; t: any; lang: L
             </>
         )}
 
-        <button onClick={() => onLogin(phone)} className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-900 font-bold py-3.5 rounded-xl shadow-lg mt-4 hover:brightness-110 active:scale-95 transition-all">
+        <button onClick={handleAuth} className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-900 font-bold py-3.5 rounded-xl shadow-lg mt-4 hover:brightness-110 active:scale-95 transition-all">
             {isRegister ? t.register : t.login}
         </button>
 
@@ -79,7 +87,7 @@ export const UserLogin: React.FC<{ onLogin: (p: string) => void; t: any; lang: L
             </button>
         </div>
 
-        {/* --- ADMIN LINK ADDED HERE --- */}
+        {/* --- ADMIN LINK --- */}
         <div className="mt-12 pt-6 border-t border-slate-800 flex justify-center">
             <a href="#/admin" className="text-slate-600 text-xs flex items-center gap-2 hover:text-yellow-500 transition-colors">
                 <ShieldCheck size={14} />
@@ -184,7 +192,7 @@ export const TaskDetailView: React.FC<{ platforms: Platform[]; onStartTask: (p: 
   if (!platform) return <div className="p-4 text-white">Not found</div>;
 
   return (
-    <div className="bg-slate-900 min-h-screen pb-24">
+    <div className="bg-slate-900 min-h-screen pb-32">
       <div className="sticky top-0 bg-slate-900/95 backdrop-blur z-20 border-b border-slate-800 p-4 flex items-center space-x-3">
         <button onClick={() => navigate(-1)} className="text-slate-300"><ArrowLeft size={24} /></button>
         <h1 className="text-white font-bold text-lg flex-1 truncate">{platform.name}</h1>
@@ -214,9 +222,18 @@ export const TaskDetailView: React.FC<{ platforms: Platform[]; onStartTask: (p: 
            <p className="text-slate-400 text-sm leading-relaxed whitespace-pre-line">{platform.rules}</p>
         </div>
       </div>
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-900 border-t border-slate-800 z-30 max-w-md mx-auto">
-        <button onClick={() => { window.open(platform.downloadLink, '_blank'); onStartTask(platform); }} className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-900 font-bold py-3.5 rounded-xl shadow-lg transition-all text-lg hover:brightness-110">
-          {t.startTask}
+      {/* Floating Bottom Button */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-900/90 backdrop-blur border-t border-slate-800 z-50 max-w-md mx-auto">
+        <button 
+            onClick={() => { 
+                // 1. Join task internally
+                onStartTask(platform); 
+                // 2. Open External Link
+                window.open(platform.downloadLink, '_blank');
+            }} 
+            className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-900 font-bold py-3.5 rounded-xl shadow-lg transition-all text-lg hover:brightness-110 active:scale-95 flex items-center justify-center gap-2"
+        >
+          {t.startTask} <ChevronRight size={20} />
         </button>
       </div>
     </div>

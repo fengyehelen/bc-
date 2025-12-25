@@ -5,7 +5,7 @@ import { TRANSLATIONS } from '../constants';
 import { generatePlatformInfo, generatePlatformLogo } from '../services/geminiService';
 import { 
   Shield, CheckCircle, User as UserIcon, List, Image, Key, LogOut, ArrowLeft,
-  LayoutDashboard, Sparkles, Wand2, Zap
+  LayoutDashboard, Sparkles, Wand2, Zap, Lock
 } from 'lucide-react';
 
 interface AdminAppProps {
@@ -14,6 +14,7 @@ interface AdminAppProps {
   activities: Activity[];
   admins: Admin[];
   updateTaskStatus: (uid: string, tid: string, status: 'completed'|'rejected') => void;
+  updateUserPassword: (uid: string, pass: string) => void;
   addActivity: (act: Activity) => void;
   addTask: (t: Platform) => void;
   addAdmin: (a: Admin) => void;
@@ -138,6 +139,29 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
     }
   };
 
+  const handleResetUserPassword = (uid: string) => {
+      const newPass = prompt("Enter new password for user:");
+      if (newPass) {
+          props.updateUserPassword(uid, newPass);
+          alert("Password updated!");
+      }
+  };
+
+  const handleAddActivity = () => {
+     if(!newActivity.title) return alert("Title is required");
+     props.addActivity({
+        id: 'a' + Date.now(),
+        title: newActivity.title,
+        imageUrl: newActivity.imageUrl || 'https://picsum.photos/800/400?random=' + Date.now(),
+        content: newActivity.content || '',
+        link: '#',
+        active: true,
+        targetCountries: newActivity.targetCountries as any
+      });
+      setNewActivity({ title: '', imageUrl: '', content: '', targetCountries: 'all' });
+      alert('Activity Published Successfully!');
+  };
+
   // AI Generation Functions
   const handleAiFillTask = async () => {
     if (!newTask.name) {
@@ -226,9 +250,14 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
       <main className="flex-1 ml-64 p-8 overflow-y-auto">
         <header className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-bold text-slate-800 capitalize">{view} Management</h2>
-            <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                <span className="text-sm text-slate-500">System Online</span>
+            <div className="flex items-center gap-4">
+                <div className="text-right">
+                    <p className="text-sm font-bold text-slate-800">{session.username}</p>
+                    <p className="text-xs text-slate-500 uppercase">{session.role}</p>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                    {session.username.charAt(0).toUpperCase()}
+                </div>
             </div>
         </header>
 
@@ -291,7 +320,10 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                        <div className="flex justify-between items-start mb-2">
                           <div className="flex items-center gap-2">
                              <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold"><UserIcon size={16}/></div>
-                             <span className="font-bold text-slate-700">{u.phone}</span>
+                             <div>
+                                <span className="font-bold text-slate-700 block">{u.phone}</span>
+                                <span className="text-[10px] text-slate-400">Pwd: {u.password || 'N/A'}</span>
+                             </div>
                           </div>
                           <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500">{u.id}</span>
                        </div>
@@ -305,8 +337,11 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                              <span className="font-bold text-slate-700">{u.invitedCount}</span>
                           </div>
                        </div>
-                       <div className="mt-3 text-xs text-slate-400 border-t border-slate-100 pt-2">
-                          Joined: {new Date(u.registrationDate).toLocaleDateString()}
+                       <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center">
+                          <span className="text-xs text-slate-400">{new Date(u.registrationDate).toLocaleDateString()}</span>
+                          <button onClick={() => handleResetUserPassword(u.id)} className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-bold border border-indigo-200 px-2 py-1 rounded hover:bg-indigo-50">
+                             <Lock size={10} /> Reset Pwd
+                          </button>
                        </div>
                     </div>
                  ))}
@@ -444,23 +479,14 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                    </div>
                    <div className="col-span-2">
                       <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Banner Image</label>
-                      <input type="file" accept="image/*" onChange={e => handleImageUpload(e, 'activity')} className="w-full text-xs" />
+                      <div className="flex gap-2">
+                         <input type="file" accept="image/*" onChange={e => handleImageUpload(e, 'activity')} className="w-full text-xs" />
+                         {newActivity.imageUrl && <img src={newActivity.imageUrl} className="w-10 h-10 object-cover rounded" />}
+                      </div>
                    </div>
                  </div>
                  <button 
-                   onClick={() => {
-                      props.addActivity({
-                        id: 'a' + Date.now(),
-                        title: newActivity.title || 'New Event',
-                        imageUrl: newActivity.imageUrl || 'https://picsum.photos/800/400?random=' + Date.now(),
-                        content: newActivity.content || '',
-                        link: '#',
-                        active: true,
-                        targetCountries: newActivity.targetCountries as any
-                      });
-                      setNewActivity({ title: '', imageUrl: '', content: '', targetCountries: 'all' });
-                      alert('Activity Live');
-                   }}
+                   onClick={handleAddActivity}
                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700"
                  >
                    Publish Activity
@@ -487,34 +513,40 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
 
         {view === 'admins' && (
            <div className="space-y-6">
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 max-w-lg">
-                  <h3 className="font-bold mb-4 text-lg">Create New Admin</h3>
-                  <div className="space-y-4 mb-6">
-                     <input type="text" placeholder="Username" value={newAdmin.username} onChange={e => setNewAdmin({...newAdmin, username: e.target.value})} className="w-full border p-2.5 rounded-lg" />
-                     <input type="password" placeholder="Password" value={newAdmin.password} onChange={e => setNewAdmin({...newAdmin, password: e.target.value})} className="w-full border p-2.5 rounded-lg" />
-                     <select value={newAdmin.role} onChange={e => setNewAdmin({...newAdmin, role: e.target.value})} className="w-full border p-2.5 rounded-lg">
-                        <option value="editor">Editor</option>
-                        <option value="super_admin">Super Admin</option>
-                     </select>
+              {session.role === 'super_admin' ? (
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 max-w-lg">
+                      <h3 className="font-bold mb-4 text-lg">Create New Admin</h3>
+                      <div className="space-y-4 mb-6">
+                         <input type="text" placeholder="Username" value={newAdmin.username} onChange={e => setNewAdmin({...newAdmin, username: e.target.value})} className="w-full border p-2.5 rounded-lg" />
+                         <input type="password" placeholder="Password" value={newAdmin.password} onChange={e => setNewAdmin({...newAdmin, password: e.target.value})} className="w-full border p-2.5 rounded-lg" />
+                         <select value={newAdmin.role} onChange={e => setNewAdmin({...newAdmin, role: e.target.value})} className="w-full border p-2.5 rounded-lg">
+                            <option value="editor">Editor</option>
+                            <option value="super_admin">Super Admin</option>
+                         </select>
+                      </div>
+                      <button 
+                         onClick={() => {
+                            if (newAdmin.username && newAdmin.password) {
+                              props.addAdmin({
+                                 id: 'admin_' + Date.now(),
+                                 username: newAdmin.username,
+                                 password: newAdmin.password,
+                                 role: newAdmin.role as any
+                              });
+                              setNewAdmin({ username: '', password: '', role: 'editor' });
+                              alert('Admin created');
+                            }
+                         }}
+                         className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700"
+                      >
+                         Create Account
+                      </button>
+                   </div>
+              ) : (
+                  <div className="p-6 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800">
+                      You are logged in as an <strong>Editor</strong>. You do not have permission to create new admin accounts.
                   </div>
-                  <button 
-                     onClick={() => {
-                        if (newAdmin.username && newAdmin.password) {
-                          props.addAdmin({
-                             id: 'admin_' + Date.now(),
-                             username: newAdmin.username,
-                             password: newAdmin.password,
-                             role: newAdmin.role as any
-                          });
-                          setNewAdmin({ username: '', password: '', role: 'editor' });
-                          alert('Admin created');
-                        }
-                     }}
-                     className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700"
-                  >
-                     Create Account
-                  </button>
-               </div>
+              )}
                <div className="grid gap-3 max-w-2xl">
                   {props.admins.map(a => (
                      <div key={a.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">

@@ -35,6 +35,7 @@ export interface UserTask {
 export interface User {
   id: string;
   phone: string;
+  password?: string; // Added for login validation
   balance: number;
   totalEarnings: number; // Cumulative
   referralCode: string;
