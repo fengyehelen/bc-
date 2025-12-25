@@ -24,11 +24,50 @@ const App: React.FC = () => {
   const [lang, setLang] = useState<Language>('en');
   const [sort, setSort] = useState<SortOption>(SortOption.NEWEST);
 
-  // Load initial data from DB
+  // Load initial data from DB and SANITIZE IT
   useEffect(() => {
-    setUsers(MockDb.getUsers());
-    setPlatforms(MockDb.getPlatforms());
-    setActivities(MockDb.getActivities());
+    // 1. Sanitize Users
+    const rawUsers = MockDb.getUsers();
+    const sanitizedUsers = Array.isArray(rawUsers) ? rawUsers.map(u => {
+        let safeAccounts = u.bankAccounts || [];
+        // @ts-ignore - Handle legacy bankInfo
+        if (!u.bankAccounts && u.bankInfo && Object.keys(u.bankInfo).length > 0) {
+            // @ts-ignore
+             safeAccounts = [{id:'legacy', ...u.bankInfo}];
+        }
+        safeAccounts = safeAccounts.filter(acc => acc.bankName && acc.accountNumber);
+
+        return {
+            ...u,
+            transactions: u.transactions || [],
+            messages: u.messages || [],
+            myTasks: u.myTasks || [],
+            bankAccounts: safeAccounts,
+            currency: u.currency || LANGUAGES['en'].currency
+        };
+    }) : [];
+    setUsers(sanitizedUsers);
+
+    // 2. Sanitize Platforms (Tasks)
+    const rawPlatforms = MockDb.getPlatforms();
+    const sanitizedPlatforms = Array.isArray(rawPlatforms) ? rawPlatforms.map(p => ({
+        ...p,
+        targetCountries: (Array.isArray(p.targetCountries) ? p.targetCountries : ['id']) as Language[], // Ensure array
+        steps: Array.isArray(p.steps) ? p.steps : [],
+        status: p.status || 'online',
+        rewardAmount: p.rewardAmount || 0
+    })) : MOCK_PLATFORMS;
+    setPlatforms(sanitizedPlatforms);
+
+    // 3. Sanitize Activities
+    const rawActivities = MockDb.getActivities();
+    const sanitizedActivities = Array.isArray(rawActivities) ? rawActivities.map(a => ({
+        ...a,
+        targetCountries: (Array.isArray(a.targetCountries) ? a.targetCountries : ['id']) as Language[], // Ensure array
+        active: a.active !== undefined ? a.active : true
+    })) : MOCK_ACTIVITIES;
+    setActivities(sanitizedActivities);
+
     setAdmins(MockDb.getAdmins());
     setConfig(MockDb.getConfig());
 
@@ -53,43 +92,45 @@ const App: React.FC = () => {
     if (isRegister) {
         if (existingUser) return "Account already exists.";
         
-        // Handle Referral
         let referrerId = undefined;
         if (inviteCode) {
            const upline = users.find(u => u.referralCode === inviteCode);
            if (upline) {
                referrerId = upline.id;
-               // Update upline count
                const updatedUplines = users.map(u => {
                   if (u.id === upline.id) return { ...u, invitedCount: u.invitedCount + 1 };
                   return u;
                });
-               setUsers(updatedUplines); // Temporary update
+               setUsers(updatedUplines);
            }
         }
+
+        const userCountry = lang; 
+        const currencySymbol = LANGUAGES[userCountry].currency;
+        const startBalance = config.initialBalance[userCountry] || 0;
 
         const newUser: User = {
           id: Math.random().toString(36).substr(2, 8),
           phone: phone, 
           password: password,
-          balance: config.initialBalance, 
-          totalEarnings: config.initialBalance, 
+          balance: startBalance,
+          currency: currencySymbol,
+          totalEarnings: startBalance, 
           referralCode: 'U'+Math.floor(Math.random()*99999), 
           referrerId: referrerId,
           invitedCount: 0, 
           myTasks: [], 
           registrationDate: new Date().toISOString(), 
           role: 'user', 
-          bankAccounts: [], // Initial empty array
+          bankAccounts: [], 
           messages: [{
-            id: 'm1', title: 'Welcome', content: 'Welcome to BetBounty! Start earning today.', date: new Date().toISOString(), read: false
+            id: 'm1', title: 'Welcome', content: 'Welcome to OddsHub! Start earning today.', date: new Date().toISOString(), read: false
           }],
-          transactions: config.initialBalance > 0 ? [{
-            id: 'tx_init', type: 'system_bonus', amount: config.initialBalance, date: new Date().toISOString(), description: 'Registration Bonus', status: 'success'
+          transactions: startBalance > 0 ? [{
+            id: 'tx_init', type: 'system_bonus', amount: startBalance, date: new Date().toISOString(), description: 'Registration Bonus', status: 'success'
           }] : []
         };
         
-        // Merge upline updates if any
         setUsers(prev => {
             if (referrerId) {
                 return [...prev.map(u => u.id === referrerId ? { ...u, invitedCount: u.invitedCount + 1 } : u), newUser];
@@ -101,17 +142,16 @@ const App: React.FC = () => {
     } else {
         if (!existingUser) return "Account does not exist.";
         if (existingUser.password && existingUser.password !== password) return "Incorrect password.";
-        // Simple fallback
         if (!existingUser.password && password !== '123456') return "Incorrect password.";
         
-        // Migrate legacy users with single bankInfo to bankAccounts array if needed
-        // @ts-ignore
-        if (existingUser.bankInfo && (!existingUser.bankAccounts || existingUser.bankAccounts.length === 0)) {
-            // @ts-ignore
-            existingUser.bankAccounts = [{ id: 'legacy', ...existingUser.bankInfo }];
-        }
+        const safeUser = {
+            ...existingUser,
+            transactions: existingUser.transactions || [],
+            bankAccounts: (existingUser.bankAccounts || []).filter(acc => acc.bankName && acc.accountNumber),
+            currency: existingUser.currency || LANGUAGES['en'].currency
+        };
         
-        setUser(existingUser);
+        setUser(safeUser);
         return null;
     }
   };
@@ -119,11 +159,17 @@ const App: React.FC = () => {
   const handleStartTask = (p: Platform) => {
     if (!user) return;
     if (user.myTasks.some(t => t.platformId === p.id)) return; 
+    
     const newTask: UserTask = {
        id: Date.now().toString(),
-       platformId: p.id, platformName: p.name, logoUrl: p.logoUrl, rewardAmount: p.rewardAmount,
-       status: 'ongoing', startTime: new Date().toISOString()
+       platformId: p.id, 
+       platformName: p.name, 
+       logoUrl: p.logoUrl, 
+       rewardAmount: p.rewardAmount,
+       status: 'ongoing', 
+       startTime: new Date().toISOString()
     };
+    
     const updatedUser = { ...user, myTasks: [newTask, ...user.myTasks] };
     setUser(updatedUser);
     setUsers(users.map(u => u.id === user.id ? updatedUser : u));
@@ -140,7 +186,6 @@ const App: React.FC = () => {
      alert("Proof Submitted! Waiting for audit.");
   };
 
-  // RECURSIVE COMMISSION FUNCTION
   const distributeCommissions = (allUsers: User[], currentUserId: string, amount: number, level: number = 1): User[] => {
      if (level > 3) return allUsers;
      const currentUser = allUsers.find(u => u.id === currentUserId);
@@ -152,7 +197,6 @@ const App: React.FC = () => {
      
      if (commAmount <= 0) return allUsers;
 
-     // Update Upline
      const updatedUsers = allUsers.map(u => {
          if (u.id === uplineId) {
              const tx: Transaction = {
@@ -167,53 +211,53 @@ const App: React.FC = () => {
                  ...u,
                  balance: u.balance + commAmount,
                  totalEarnings: u.totalEarnings + commAmount,
-                 transactions: [tx, ...u.transactions]
+                 transactions: [tx, ...(u.transactions || [])]
              };
          }
          return u;
      });
 
-     // Recurse to next level upline
      return distributeCommissions(updatedUsers, uplineId, amount, level + 1);
   };
 
   const updateTaskStatus = (userId: string, taskId: string, status: 'completed' | 'rejected') => {
-     // 1. Find User and Task
-     let currentUsers = [...users];
-     const targetUserIndex = currentUsers.findIndex(u => u.id === userId);
-     if (targetUserIndex === -1) return;
-     const targetUser = currentUsers[targetUserIndex];
-     const task = targetUser.myTasks.find(t => t.id === taskId);
-     if (!task) return;
+     setUsers(prevUsers => {
+         let currentUsers = [...prevUsers];
+         const targetUserIndex = currentUsers.findIndex(u => u.id === userId);
+         
+         if (targetUserIndex === -1) return prevUsers;
+         
+         const targetUser = currentUsers[targetUserIndex];
+         const task = targetUser.myTasks.find(t => t.id === taskId);
+         
+         if (!task) return prevUsers;
 
-     const reward = task.rewardAmount;
-
-     // 2. Update User Task Status & Balance (if completed)
-     const newTaskStatus = status;
-     let updatedUser = {
-        ...targetUser,
-        myTasks: targetUser.myTasks.map(t => t.id === taskId ? { ...t, status: newTaskStatus } : t)
-     };
-
-     if (status === 'completed') {
-         const tx: Transaction = {
-             id: `rew_${taskId}`, type: 'task_reward', amount: reward, date: new Date().toISOString(), description: `Task Reward: ${task.platformName}`, status: 'success'
+         const reward = task.rewardAmount;
+         let updatedUser = {
+            ...targetUser,
+            myTasks: targetUser.myTasks.map(t => t.id === taskId ? { ...t, status: status } : t)
          };
-         updatedUser.balance += reward;
-         updatedUser.totalEarnings += reward;
-         updatedUser.transactions = [tx, ...updatedUser.transactions];
-     }
-     
-     // Update local user array
-     currentUsers[targetUserIndex] = updatedUser;
 
-     // 3. Handle Commissions (if completed)
-     if (status === 'completed') {
-         currentUsers = distributeCommissions(currentUsers, userId, reward);
-     }
+         if (status === 'completed') {
+             const tx: Transaction = {
+                 id: `rew_${taskId}`, type: 'task_reward', amount: reward, date: new Date().toISOString(), description: `Task Reward: ${task.platformName}`, status: 'success'
+             };
+             updatedUser.balance += reward;
+             updatedUser.totalEarnings += reward;
+             updatedUser.transactions = [tx, ...(updatedUser.transactions || [])];
+         }
+         
+         currentUsers[targetUserIndex] = updatedUser;
+         if (status === 'completed') {
+             currentUsers = distributeCommissions(currentUsers, userId, reward);
+         }
 
-     setUsers(currentUsers);
-     if (user?.id === userId) setUser(currentUsers.find(u => u.id === userId) || null);
+         if (user && user.id === userId) {
+            setUser(currentUsers.find(u => u.id === userId) || null);
+         }
+
+         return currentUsers;
+     });
   };
 
   const updateUserPassword = (userId: string, newPass: string) => {
@@ -226,17 +270,19 @@ const App: React.FC = () => {
         id: 'acc_' + Date.now(),
         bankName, accountName, accountNumber, type 
     };
-    // Append to existing accounts
     const updatedAccounts = [...(user.bankAccounts || []), newAccount];
     const updatedUser: User = { ...user, bankAccounts: updatedAccounts };
-    
     setUser(updatedUser);
     setUsers(users.map(u => u.id === user.id ? updatedUser : u));
   };
 
   const handleWithdraw = (amount: number, accountId: string) => {
       if (!user) return;
-      if (amount < config.minWithdrawAmount) return alert(`${t.minWithdrawErr} ${config.minWithdrawAmount}`);
+      const userCountryEntry = Object.entries(LANGUAGES).find(([k, v]) => v.currency === user.currency);
+      const countryCode = userCountryEntry ? userCountryEntry[0] : 'en';
+      const minWithdraw = config.minWithdrawAmount[countryCode] || 100;
+
+      if (amount < minWithdraw) return alert(`${t.minWithdrawErr} ${minWithdraw}`);
       if (user.balance < amount) return alert(t.insufficient);
       
       const account = user.bankAccounts.find(a => a.id === accountId);
@@ -249,7 +295,7 @@ const App: React.FC = () => {
       const updatedUser: User = {
           ...user,
           balance: user.balance - amount,
-          transactions: [tx, ...user.transactions]
+          transactions: [tx, ...(user.transactions || [])]
       };
       setUser(updatedUser);
       setUsers(users.map(u => u.id === user.id ? updatedUser : u));
@@ -269,6 +315,22 @@ const App: React.FC = () => {
       alert("Message Sent!");
   };
 
+  const handleManageContent = (type: 'task'|'activity', id: string, action: 'delete'|'toggle') => {
+      if (type === 'task') {
+          if (action === 'delete') {
+              setPlatforms(platforms.filter(p => p.id !== id));
+          } else {
+              setPlatforms(platforms.map(p => p.id === id ? { ...p, status: p.status === 'online' ? 'offline' : 'online' } : p));
+          }
+      } else {
+          if (action === 'delete') {
+              setActivities(activities.filter(a => a.id !== id));
+          } else {
+              setActivities(activities.map(a => a.id === id ? { ...a, active: !a.active } : a));
+          }
+      }
+  };
+
   return (
     <Router>
       <Routes>
@@ -283,9 +345,27 @@ const App: React.FC = () => {
               updateUserPassword={updateUserPassword}
               updateConfig={setConfig}
               sendMessage={handleAdminMessage}
-              addActivity={(a) => setActivities([...activities, a])}
-              addTask={(task) => setPlatforms([...platforms, task])}
+              // STRICT SANITIZATION WRAPPER
+              addActivity={(a) => {
+                 const safeActivity: Activity = {
+                    ...a,
+                    // STRICTLY DEFAULT TO ARRAY IF EMPTY
+                    targetCountries: (Array.isArray(a.targetCountries) && a.targetCountries.length > 0) ? a.targetCountries : ['id']
+                 };
+                 setActivities([...activities, safeActivity]);
+              }}
+              // STRICT SANITIZATION WRAPPER
+              addTask={(task) => {
+                 const safeTask: Platform = {
+                    ...task,
+                    // STRICTLY DEFAULT TO ARRAY IF EMPTY
+                    targetCountries: (Array.isArray(task.targetCountries) && task.targetCountries.length > 0) ? task.targetCountries : ['id'],
+                    steps: Array.isArray(task.steps) ? task.steps : ['Download', 'Register', 'Deposit']
+                 };
+                 setPlatforms([...platforms, safeTask]);
+              }}
               addAdmin={(a) => setAdmins([...admins, a])}
+              manageContent={handleManageContent}
               lang={lang}
             />
         } />
@@ -296,11 +376,11 @@ const App: React.FC = () => {
 
         {user ? (
           <Route path="/" element={<Layout lang={lang} setLang={setLang} telegramLink={config.telegramLinks[lang] || config.telegramLinks['en']}><Outlet /></Layout>}>
-            <Route index element={<HomeView platforms={platforms} activities={activities} t={t} setSort={setSort} sort={sort} lang={lang} />} />
+            <Route index element={<HomeView platforms={platforms} activities={activities} t={t} setSort={setSort} sort={sort} lang={lang} user={user} />} />
             <Route path="referral" element={<ReferralView user={user} users={users} t={t} lang={lang} />} />
             <Route path="tasks" element={<MyTasksView user={user} onSubmitProof={handleSubmitProof} t={t} lang={lang} />} />
             <Route path="profile" element={<ProfileView user={user} t={t} logout={() => setUser(null)} lang={lang} onBindCard={handleBindCard} onWithdraw={handleWithdraw} />} />
-            <Route path="task-detail/:id" element={<TaskDetailView platforms={platforms} onStartTask={handleStartTask} t={t} lang={lang} />} />
+            <Route path="task-detail/:id" element={<TaskDetailView platforms={platforms} onStartTask={handleStartTask} t={t} lang={lang} user={user} />} />
             <Route path="activity/:id" element={<ActivityDetailView activities={activities} t={t} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

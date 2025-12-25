@@ -20,8 +20,8 @@ const DEFAULT_ADMIN: Admin = {
 
 // Default Config
 const DEFAULT_CONFIG: SystemConfig = {
-  initialBalance: 0,
-  minWithdrawAmount: 100,
+  initialBalance: { en: 0, zh: 0, id: 0, th: 0, vi: 0, ms: 0, tl: 0 },
+  minWithdrawAmount: { en: 10, zh: 100, id: 50000, th: 100, vi: 100000, ms: 50, tl: 200 },
   telegramLinks: {
     en: 'https://t.me/betbounty_global',
     zh: 'https://t.me/betbounty_cn',

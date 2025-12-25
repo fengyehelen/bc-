@@ -62,13 +62,14 @@ export interface User {
   phone: string;
   password?: string;
   balance: number;
+  currency: string; // Fixed currency unit for the user
   totalEarnings: number;
   referralCode: string;
   referrerId?: string; 
   invitedCount: number;
   myTasks: UserTask[];
   registrationDate: string;
-  bankAccounts: BankAccount[]; // Changed from single bankInfo to array
+  bankAccounts: BankAccount[]; 
   role: 'user' | 'admin';
   messages: Message[];
   transactions: Transaction[];
@@ -92,8 +93,8 @@ export interface Activity {
 }
 
 export interface SystemConfig {
-  initialBalance: number;
-  minWithdrawAmount: number;
+  initialBalance: Record<string, number>; // Country specific
+  minWithdrawAmount: Record<string, number>; // Country specific
   telegramLinks: Record<string, string>;
 }
 
