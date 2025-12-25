@@ -16,7 +16,7 @@ export interface Platform {
   rules: string;
   status: 'online' | 'offline';
   type: 'deposit' | 'register' | 'share';
-  targetCountries: Language[] | 'all'; // New field for regional filtering
+  targetCountries: Language[];
 }
 
 export interface UserTask {
@@ -32,25 +32,52 @@ export interface UserTask {
   rejectReason?: string;
 }
 
+export interface Transaction {
+  id: string;
+  type: 'task_reward' | 'referral_bonus' | 'withdraw' | 'system_bonus';
+  amount: number;
+  date: string;
+  description: string;
+  status: 'success' | 'pending' | 'failed';
+}
+
+export interface Message {
+  id: string;
+  title: string;
+  content: string;
+  date: string;
+  read: boolean;
+}
+
+export interface BankAccount {
+  id: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  type: 'bank' | 'ewallet';
+}
+
 export interface User {
   id: string;
   phone: string;
-  password?: string; // Added for login validation
+  password?: string;
   balance: number;
-  totalEarnings: number; // Cumulative
+  totalEarnings: number;
   referralCode: string;
+  referrerId?: string; 
   invitedCount: number;
   myTasks: UserTask[];
   registrationDate: string;
-  bankInfo?: string;
+  bankAccounts: BankAccount[]; // Changed from single bankInfo to array
   role: 'user' | 'admin';
-  notifications: number; // Unread count
+  messages: Message[];
+  transactions: Transaction[];
 }
 
 export interface Admin {
   id: string;
   username: string;
-  password: string; // In a real app, this should be hashed
+  password: string;
   role: 'super_admin' | 'editor';
 }
 
@@ -58,10 +85,16 @@ export interface Activity {
   id: string;
   title: string;
   imageUrl: string;
-  content: string; // New: Details for the activity page
+  content: string;
   link: string;
   active: boolean;
-  targetCountries: Language[] | 'all';
+  targetCountries: Language[];
+}
+
+export interface SystemConfig {
+  initialBalance: number;
+  minWithdrawAmount: number;
+  telegramLinks: Record<string, string>;
 }
 
 export enum SortOption {

@@ -1,4 +1,4 @@
-import { User, Platform, Activity, Admin } from '../types';
+import { User, Platform, Activity, Admin, SystemConfig } from '../types';
 import { MOCK_PLATFORMS, MOCK_ACTIVITIES } from '../constants';
 
 // Keys for LocalStorage
@@ -6,7 +6,8 @@ const KEYS = {
   USERS: 'betbounty_users',
   PLATFORMS: 'betbounty_platforms',
   ACTIVITIES: 'betbounty_activities',
-  ADMINS: 'betbounty_admins'
+  ADMINS: 'betbounty_admins',
+  CONFIG: 'betbounty_config'
 };
 
 // Default Admin
@@ -15,6 +16,21 @@ const DEFAULT_ADMIN: Admin = {
   username: 'admin',
   password: '123',
   role: 'super_admin'
+};
+
+// Default Config
+const DEFAULT_CONFIG: SystemConfig = {
+  initialBalance: 0,
+  minWithdrawAmount: 100,
+  telegramLinks: {
+    en: 'https://t.me/betbounty_global',
+    zh: 'https://t.me/betbounty_cn',
+    id: 'https://t.me/betbounty_id',
+    th: 'https://t.me/betbounty_th',
+    vi: 'https://t.me/betbounty_vn',
+    ms: 'https://t.me/betbounty_my',
+    tl: 'https://t.me/betbounty_ph'
+  }
 };
 
 export const MockDb = {
@@ -49,7 +65,6 @@ export const MockDb = {
   getAdmins: (): Admin[] => {
     const data = localStorage.getItem(KEYS.ADMINS);
     if (!data) {
-      // Initialize with default admin if empty
       localStorage.setItem(KEYS.ADMINS, JSON.stringify([DEFAULT_ADMIN]));
       return [DEFAULT_ADMIN];
     }
@@ -57,5 +72,14 @@ export const MockDb = {
   },
   saveAdmins: (admins: Admin[]) => {
     localStorage.setItem(KEYS.ADMINS, JSON.stringify(admins));
+  },
+
+  // --- System Config ---
+  getConfig: (): SystemConfig => {
+    const data = localStorage.getItem(KEYS.CONFIG);
+    return data ? JSON.parse(data) : DEFAULT_CONFIG;
+  },
+  saveConfig: (config: SystemConfig) => {
+    localStorage.setItem(KEYS.CONFIG, JSON.stringify(config));
   }
 };
