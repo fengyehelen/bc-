@@ -38,8 +38,8 @@ export const UserLogin: React.FC<{ onAuth: (p: string, pw: string, isReg: boolea
       
       if (isRegister) {
           if (!code) return alert("Please enter verification code");
-          // Magic code check for testing
-          if (code !== '9527') return alert("Invalid verification code. Please try again.");
+          // Strict verification code check
+          if (code !== '9527') return alert("Verification code incorrect. Please try again.");
       }
 
       const error = onAuth(phone, password, isRegister, inviteCode);

@@ -345,8 +345,23 @@ const App: React.FC = () => {
               updateUserPassword={updateUserPassword}
               updateConfig={setConfig}
               sendMessage={handleAdminMessage}
-              addActivity={(a) => setActivities([...activities, a])}
-              addTask={(task) => setPlatforms([...platforms, task])}
+              // STRICT SANITIZATION WRAPPER
+              addActivity={(a) => {
+                 const safeActivity: Activity = {
+                    ...a,
+                    targetCountries: Array.isArray(a.targetCountries) ? a.targetCountries : ['id']
+                 };
+                 setActivities([...activities, safeActivity]);
+              }}
+              // STRICT SANITIZATION WRAPPER
+              addTask={(task) => {
+                 const safeTask: Platform = {
+                    ...task,
+                    targetCountries: Array.isArray(task.targetCountries) ? task.targetCountries : ['id'],
+                    steps: Array.isArray(task.steps) ? task.steps : ['Download', 'Register', 'Deposit']
+                 };
+                 setPlatforms([...platforms, safeTask]);
+              }}
               addAdmin={(a) => setAdmins([...admins, a])}
               manageContent={handleManageContent}
               lang={lang}

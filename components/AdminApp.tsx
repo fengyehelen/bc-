@@ -115,7 +115,7 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
         content: newActivity.content || '',
         link: '#',
         active: true,
-        // STRICTLY DEFAULT TO ARRAY
+        // Fallback here, but strict check is now in App.tsx
         targetCountries: (newActivity.targetCountries && newActivity.targetCountries.length > 0) ? newActivity.targetCountries : ['id']
       };
       props.addActivity(act);
@@ -277,10 +277,6 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                      </div>
                   </div>
                   <button onClick={() => {
-                        // FORCE ARRAY TYPES TO AVOID UNDEFINED
-                        const safeTargetCountries = (newTask.targetCountries && newTask.targetCountries.length > 0) ? newTask.targetCountries : ['id'];
-                        const safeSteps = (newTask.steps && newTask.steps.length > 0) ? newTask.steps : ['Step 1'];
-                        
                         props.addTask({
                            id: 't' + Date.now(),
                            name: newTask.name || 'New Task',
@@ -292,11 +288,11 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                            launchDate: new Date().toISOString(), 
                            remainingQty: 100, 
                            totalQty: 100,
-                           steps: safeSteps, 
+                           steps: (newTask.steps && newTask.steps.length > 0) ? newTask.steps : ['Step 1'], 
                            rules: '', 
                            status: 'online', 
                            type: 'deposit',
-                           targetCountries: safeTargetCountries as Language[]
+                           targetCountries: (newTask.targetCountries && newTask.targetCountries.length > 0) ? newTask.targetCountries : ['id']
                         });
                         alert('Published');
                      }} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold">Publish</button>
