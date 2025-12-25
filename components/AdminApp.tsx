@@ -62,21 +62,20 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
   const [hasApiKey, setHasApiKey] = useState(false);
   
   // --- ROBUST STATE MANAGEMENT FOR FORMS ---
-  // We use simple states to avoid complex object nesting issues
   
   // Activity Form State
   const [actTitle, setActTitle] = useState('');
   const [actContent, setActContent] = useState('');
   const [actImage, setActImage] = useState('');
-  const [actCountries, setActCountries] = useState<string[]>(['id']);
+  const [actCountry, setActCountry] = useState<string>('id'); // Changed to single string
 
   // Task Form State
   const [taskName, setTaskName] = useState('');
   const [taskDesc, setTaskDesc] = useState('');
-  const [taskReward, setTaskReward] = useState<string>('0'); // String to prevent NaN issues during typing
+  const [taskReward, setTaskReward] = useState<string>('0'); 
   const [taskLink, setTaskLink] = useState('');
   const [taskImage, setTaskImage] = useState('');
-  const [taskCountries, setTaskCountries] = useState<string[]>(['id']);
+  const [taskCountry, setTaskCountry] = useState<string>('id'); // Changed to single string
   const [taskSteps, setTaskSteps] = useState<string[]>(['Download App', 'Register', 'Deposit']);
 
   // Admin Config State
@@ -104,14 +103,6 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
   };
 
   // --- HELPERS ---
-
-  const toggleCountry = (code: string, currentList: string[], setter: (l: string[]) => void) => {
-      if (currentList.includes(code)) {
-          setter(currentList.filter(c => c !== code));
-      } else {
-          setter([...currentList, code]);
-      }
-  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, setter: (s: string) => void) => {
     const file = e.target.files?.[0];
@@ -155,7 +146,7 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
       setTaskReward('0');
       setTaskLink('');
       setTaskImage('');
-      setTaskCountries(['id']);
+      setTaskCountry('id');
       setTaskSteps(['Download App', 'Register', 'Deposit']);
   };
 
@@ -163,7 +154,6 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
       // 1. Validation
       if (!taskName) return alert("Task Name is required");
       if (!taskLink) return alert("Task Link is required");
-      if (taskCountries.length === 0) return alert("Please select at least one country");
 
       // 2. Construction (Safe)
       const newTask: Platform = {
@@ -181,7 +171,8 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
           rules: '',
           status: 'online',
           type: 'deposit',
-          targetCountries: taskCountries as Language[]
+          // WRAP SINGLE COUNTRY IN ARRAY FOR COMPATIBILITY
+          targetCountries: [taskCountry as Language]
       };
 
       // 3. Submit
@@ -200,7 +191,8 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
           imageUrl: actImage || 'https://via.placeholder.com/400x200',
           link: '#',
           active: true,
-          targetCountries: actCountries as Language[]
+          // WRAP SINGLE COUNTRY IN ARRAY FOR COMPATIBILITY
+          targetCountries: [actCountry as Language]
       };
 
       props.addActivity(newAct);
@@ -395,23 +387,16 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                          </div>
 
                          <div className="space-y-2">
-                             <label className="text-xs font-bold uppercase text-slate-500">Target Countries</label>
-                             <div className="grid grid-cols-3 gap-2">
-                                 {COUNTRIES.map(c => (
-                                     <button 
-                                        key={c.value}
-                                        onClick={() => toggleCountry(c.value, taskCountries, setTaskCountries)}
-                                        className={`px-2 py-2 rounded-lg text-xs font-bold border flex items-center justify-center gap-1 transition-all ${
-                                            taskCountries.includes(c.value) 
-                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-105' 
-                                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
-                                        }`}
-                                     >
-                                         {taskCountries.includes(c.value) && <CheckCircle size={10} />}
-                                         {c.label}
-                                     </button>
-                                 ))}
-                             </div>
+                             <label className="text-xs font-bold uppercase text-slate-500">Target Country</label>
+                             <select 
+                                value={taskCountry} 
+                                onChange={e => setTaskCountry(e.target.value)} 
+                                className="w-full border border-slate-300 p-2.5 rounded-lg focus:outline-none bg-white"
+                             >
+                                {COUNTRIES.map(c => (
+                                    <option key={c.value} value={c.value}>{c.label}</option>
+                                ))}
+                             </select>
                          </div>
                      </div>
                   </div>
@@ -465,18 +450,16 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                        <div className="space-y-4">
                            <div><label className="text-xs font-bold uppercase text-slate-500">Content</label><textarea value={actContent} onChange={e => setActContent(e.target.value)} className="w-full border p-2 rounded-lg mt-1 h-32" /></div>
                            <div>
-                                <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Target Countries</label>
-                                <div className="flex flex-wrap gap-2">
-                                     {COUNTRIES.map(c => (
-                                         <button 
-                                            key={c.value}
-                                            onClick={() => toggleCountry(c.value, actCountries, setActCountries)}
-                                            className={`px-3 py-1 rounded-full text-xs font-bold border ${actCountries.includes(c.value) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500'}`}
-                                         >
-                                             {c.label}
-                                         </button>
-                                     ))}
-                                </div>
+                                <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Target Country</label>
+                                <select 
+                                    value={actCountry} 
+                                    onChange={e => setActCountry(e.target.value)} 
+                                    className="w-full border border-slate-300 p-2.5 rounded-lg focus:outline-none bg-white"
+                                >
+                                    {COUNTRIES.map(c => (
+                                        <option key={c.value} value={c.value}>{c.label}</option>
+                                    ))}
+                                </select>
                            </div>
                        </div>
                   </div>
