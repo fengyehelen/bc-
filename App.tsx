@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Language, Platform, User, UserTask, SortOption, Activity, Admin, SystemConfig, Message, Transaction, BankAccount } from './types';
 import { LANGUAGES, TRANSLATIONS, MOCK_PLATFORMS, MOCK_ACTIVITIES } from './constants';
@@ -7,64 +7,117 @@ import Layout from './components/Layout';
 import AdminApp from './components/AdminApp';
 import { 
   HomeView, TaskDetailView, MyTasksView, ProfileView, ReferralView, 
-  ActivityDetailView, UserLogin 
+  ActivityDetailView, UserLogin, MailboxView, StaticPageView, TransactionHistoryView
 } from './components/UserApp';
+import { Coins } from 'lucide-react';
 
-// Main App Controller
+// REWARD POPUP COMPONENT
+const RewardPopup: React.FC<{ amount: number; currency: string; title?: string; onClose: () => void }> = ({ amount, currency, title, onClose }) => {
+    const playCoinSound = () => {
+        try {
+            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+            if (AudioContext) {
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1200, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.5, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+                setTimeout(() => {
+                     const osc2 = ctx.createOscillator();
+                     const gain2 = ctx.createGain();
+                     osc2.frequency.setValueAtTime(1500, ctx.currentTime);
+                     gain2.gain.setValueAtTime(0.3, ctx.currentTime);
+                     gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+                     osc2.connect(gain2);
+                     gain2.connect(ctx.destination);
+                     osc2.start();
+                     osc2.stop(ctx.currentTime + 0.2);
+                }, 100);
+            }
+        } catch (e) { console.error("Audio error", e); }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-entry">
+            <div className="bg-gradient-to-br from-yellow-400 to-amber-600 p-1 rounded-2xl shadow-2xl animate-bounce-in w-64">
+                <div className="bg-slate-900 rounded-xl p-6 text-center border border-white/20">
+                    <div className="w-20 h-20 bg-yellow-500 rounded-full mx-auto mb-4 flex items-center justify-center shadow-[0_0_20px_rgba(234,179,8,0.5)]">
+                        <Coins size={40} className="text-white animate-pulse" />
+                    </div>
+                    <h3 className="text-white font-bold text-xl mb-1">{title || 'Congratulations!'}</h3>
+                    <p className="text-slate-300 text-xs mb-4">You received</p>
+                    <div className="text-3xl font-bold text-yellow-400 mb-6 drop-shadow-md">
+                        +{currency} {amount}
+                    </div>
+                    <button onClick={() => { playCoinSound(); onClose(); }} className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-900 font-bold py-3 rounded-lg shadow-lg hover:scale-105 transition-transform">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  
-  // Shared Data State
   const [users, setUsers] = useState<User[]>([]); 
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [config, setConfig] = useState<SystemConfig>(MockDb.getConfig());
-
   const [lang, setLang] = useState<Language>('en');
   const [sort, setSort] = useState<SortOption>(SortOption.NEWEST);
+  const [popupData, setPopupData] = useState<{ amount: number; title?: string } | null>(null);
+  const prevTxCountRef = useRef(0);
 
-  // Load initial data from DB and SANITIZE IT
+  // Initialize
   useEffect(() => {
-    // 1. Sanitize Users
     const rawUsers = MockDb.getUsers();
     const sanitizedUsers = Array.isArray(rawUsers) ? rawUsers.map(u => {
         let safeAccounts = u.bankAccounts || [];
-        // @ts-ignore - Handle legacy bankInfo
-        if (!u.bankAccounts && u.bankInfo && Object.keys(u.bankInfo).length > 0) {
-            // @ts-ignore
-             safeAccounts = [{id:'legacy', ...u.bankInfo}];
-        }
+        // @ts-ignore
+        if (!u.bankAccounts && u.bankInfo && Object.keys(u.bankInfo).length > 0) safeAccounts = [{id:'legacy', ...u.bankInfo}];
         safeAccounts = safeAccounts.filter(acc => acc.bankName && acc.accountNumber);
-
         return {
             ...u,
             transactions: u.transactions || [],
             messages: u.messages || [],
             myTasks: u.myTasks || [],
             bankAccounts: safeAccounts,
-            currency: u.currency || LANGUAGES['en'].currency
+            currency: u.currency || LANGUAGES['en'].currency,
+            theme: u.theme || 'dark',
+            vipLevel: u.vipLevel || 1,
+            likedTaskIds: u.likedTaskIds || []
         };
     }) : [];
     setUsers(sanitizedUsers);
 
-    // 2. Sanitize Platforms (Tasks)
     const rawPlatforms = MockDb.getPlatforms();
     const sanitizedPlatforms = Array.isArray(rawPlatforms) ? rawPlatforms.map(p => ({
         ...p,
-        targetCountries: (Array.isArray(p.targetCountries) ? p.targetCountries : ['id']) as Language[], // Ensure array
+        targetCountries: (Array.isArray(p.targetCountries) ? p.targetCountries : ['id']) as Language[], 
         steps: Array.isArray(p.steps) ? p.steps : [],
         status: p.status || 'online',
-        rewardAmount: p.rewardAmount || 0
+        rewardAmount: p.rewardAmount || 0,
+        likes: p.likes || Math.floor(Math.random() * 100),
+        remainingQty: p.remainingQty !== undefined ? p.remainingQty : 100,
+        totalQty: p.totalQty !== undefined ? p.totalQty : 100
     })) : MOCK_PLATFORMS;
     setPlatforms(sanitizedPlatforms);
 
-    // 3. Sanitize Activities
     const rawActivities = MockDb.getActivities();
     const sanitizedActivities = Array.isArray(rawActivities) ? rawActivities.map(a => ({
         ...a,
-        targetCountries: (Array.isArray(a.targetCountries) ? a.targetCountries : ['id']) as Language[], // Ensure array
-        active: a.active !== undefined ? a.active : true
+        targetCountries: (Array.isArray(a.targetCountries) ? a.targetCountries : ['id']) as Language[], 
+        active: a.active !== undefined ? a.active : true,
+        showPopup: a.showPopup !== undefined ? a.showPopup : false
     })) : MOCK_ACTIVITIES;
     setActivities(sanitizedActivities);
 
@@ -75,14 +128,61 @@ const App: React.FC = () => {
     if (l in TRANSLATIONS) setLang(l as Language);
   }, []);
 
-  // Save data on change
+  // Save changes
   useEffect(() => { if(users.length > 0) MockDb.saveUsers(users); }, [users]);
   useEffect(() => { if(platforms.length > 0) MockDb.savePlatforms(platforms); }, [platforms]);
   useEffect(() => { if(activities.length > 0) MockDb.saveActivities(activities); }, [activities]);
   useEffect(() => { if(admins.length > 0) MockDb.saveAdmins(admins); }, [admins]);
   useEffect(() => { MockDb.saveConfig(config); }, [config]);
 
-  const t = TRANSLATIONS[lang];
+  // VIP CHECKER & POPUP
+  useEffect(() => {
+    if (!user) return;
+    
+    // Check for popup transactions
+    const txs = user.transactions || [];
+    if (txs.length > prevTxCountRef.current) {
+        const newTx = txs[0]; 
+        if (newTx && newTx.amount > 0 && ['task_reward','admin_gift','referral_bonus','system_bonus','vip_bonus'].includes(newTx.type)) {
+            setPopupData({ amount: newTx.amount, title: newTx.type === 'vip_bonus' ? 'VIP UPGRADE!' : undefined });
+        }
+        prevTxCountRef.current = txs.length;
+    }
+
+    // Check VIP Upgrade
+    if (config.vipConfig && config.vipConfig.length > 0) {
+        const currentLevel = user.vipLevel || 1;
+        const earnings = user.totalEarnings;
+        let nextLevel = currentLevel;
+        let rewardAcc = 0;
+
+        // Find max eligible level
+        for (let i = currentLevel + 1; i <= 20; i++) {
+            const tier = config.vipConfig.find(v => v.level === i);
+            if (tier && earnings >= tier.threshold) {
+                nextLevel = i;
+                rewardAcc += tier.reward;
+            } else {
+                break;
+            }
+        }
+
+        if (nextLevel > currentLevel) {
+            const tx: Transaction = {
+                id: `vip_${Date.now()}`, type: 'vip_bonus', amount: rewardAcc, date: new Date().toISOString(), description: `VIP Level ${nextLevel} Upgrade Bonus`, status: 'success'
+            };
+            const updatedUser = { 
+                ...user, 
+                vipLevel: nextLevel, 
+                balance: user.balance + rewardAcc,
+                totalEarnings: user.totalEarnings + rewardAcc,
+                transactions: [tx, ...user.transactions]
+            };
+            setUser(updatedUser);
+            setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+        }
+    }
+  }, [user, config.vipConfig]);
 
   // --- ACTIONS ---
 
@@ -128,7 +228,10 @@ const App: React.FC = () => {
           }],
           transactions: startBalance > 0 ? [{
             id: 'tx_init', type: 'system_bonus', amount: startBalance, date: new Date().toISOString(), description: 'Registration Bonus', status: 'success'
-          }] : []
+          }] : [],
+          theme: 'dark',
+          vipLevel: 1,
+          likedTaskIds: []
         };
         
         setUsers(prev => {
@@ -142,13 +245,16 @@ const App: React.FC = () => {
     } else {
         if (!existingUser) return "Account does not exist.";
         if (existingUser.password && existingUser.password !== password) return "Incorrect password.";
-        if (!existingUser.password && password !== '123456') return "Incorrect password.";
+        if (existingUser.isBanned) return "This account has been banned.";
         
         const safeUser = {
             ...existingUser,
             transactions: existingUser.transactions || [],
             bankAccounts: (existingUser.bankAccounts || []).filter(acc => acc.bankName && acc.accountNumber),
-            currency: existingUser.currency || LANGUAGES['en'].currency
+            currency: existingUser.currency || LANGUAGES['en'].currency,
+            theme: existingUser.theme || 'dark',
+            vipLevel: existingUser.vipLevel || 1,
+            likedTaskIds: existingUser.likedTaskIds || []
         };
         
         setUser(safeUser);
@@ -158,7 +264,8 @@ const App: React.FC = () => {
 
   const handleStartTask = (p: Platform) => {
     if (!user) return;
-    if (user.myTasks.some(t => t.platformId === p.id)) return; 
+    if (user.myTasks.some(t => t.platformId === p.id)) return;
+    if (p.remainingQty <= 0) return alert("Task Sold Out!");
     
     const newTask: UserTask = {
        id: Date.now().toString(),
@@ -170,9 +277,15 @@ const App: React.FC = () => {
        startTime: new Date().toISOString()
     };
     
+    const updatedPlatforms = platforms.map(plat => plat.id === p.id ? { ...plat, remainingQty: plat.remainingQty - 1 } : plat);
+    setPlatforms(updatedPlatforms);
+
     const updatedUser = { ...user, myTasks: [newTask, ...user.myTasks] };
     setUser(updatedUser);
     setUsers(users.map(u => u.id === user.id ? updatedUser : u));
+    
+    // Auto-open link
+    window.open(p.downloadLink, '_blank');
   };
 
   const handleSubmitProof = (taskId: string, imgUrl: string) => {
@@ -186,50 +299,13 @@ const App: React.FC = () => {
      alert("Proof Submitted! Waiting for audit.");
   };
 
-  const distributeCommissions = (allUsers: User[], currentUserId: string, amount: number, level: number = 1): User[] => {
-     if (level > 3) return allUsers;
-     const currentUser = allUsers.find(u => u.id === currentUserId);
-     if (!currentUser || !currentUser.referrerId) return allUsers;
-
-     const uplineId = currentUser.referrerId;
-     const rate = level === 1 ? 0.20 : level === 2 ? 0.10 : 0.05;
-     const commAmount = amount * rate;
-     
-     if (commAmount <= 0) return allUsers;
-
-     const updatedUsers = allUsers.map(u => {
-         if (u.id === uplineId) {
-             const tx: Transaction = {
-                 id: `comm_${Date.now()}_${level}`,
-                 type: 'referral_bonus',
-                 amount: commAmount,
-                 date: new Date().toISOString(),
-                 description: `Level ${level} Commission from user ${currentUser.phone}`,
-                 status: 'success'
-             };
-             return {
-                 ...u,
-                 balance: u.balance + commAmount,
-                 totalEarnings: u.totalEarnings + commAmount,
-                 transactions: [tx, ...(u.transactions || [])]
-             };
-         }
-         return u;
-     });
-
-     return distributeCommissions(updatedUsers, uplineId, amount, level + 1);
-  };
-
   const updateTaskStatus = (userId: string, taskId: string, status: 'completed' | 'rejected') => {
      setUsers(prevUsers => {
          let currentUsers = [...prevUsers];
          const targetUserIndex = currentUsers.findIndex(u => u.id === userId);
-         
          if (targetUserIndex === -1) return prevUsers;
-         
          const targetUser = currentUsers[targetUserIndex];
          const task = targetUser.myTasks.find(t => t.id === taskId);
-         
          if (!task) return prevUsers;
 
          const reward = task.rewardAmount;
@@ -248,140 +324,98 @@ const App: React.FC = () => {
          }
          
          currentUsers[targetUserIndex] = updatedUser;
-         if (status === 'completed') {
-             currentUsers = distributeCommissions(currentUsers, userId, reward);
-         }
-
-         if (user && user.id === userId) {
-            setUser(currentUsers.find(u => u.id === userId) || null);
-         }
-
+         if (user && user.id === userId) setUser(updatedUser);
          return currentUsers;
      });
   };
 
-  const updateUserPassword = (userId: string, newPass: string) => {
-      setUsers(users.map(u => u.id === userId ? { ...u, password: newPass } : u));
-  };
+  const handleAdminMessage = (userId: string | 'all', title: string, content: string, amount: number = 0) => {
+      const msg: Message = { id: `msg_${Date.now()}`, title, content, date: new Date().toISOString(), read: false, rewardAmount: amount };
+      const tx: Transaction = { id: `gift_${Date.now()}`, type: 'admin_gift', amount: amount, date: new Date().toISOString(), description: `Admin Gift: ${title}`, status: 'success' };
 
-  const handleBindCard = (bankName: string, accountName: string, accountNumber: string, type: 'bank'|'ewallet') => {
-    if (!user) return;
-    const newAccount: BankAccount = { 
-        id: 'acc_' + Date.now(),
-        bankName, accountName, accountNumber, type 
-    };
-    const updatedAccounts = [...(user.bankAccounts || []), newAccount];
-    const updatedUser: User = { ...user, bankAccounts: updatedAccounts };
-    setUser(updatedUser);
-    setUsers(users.map(u => u.id === user.id ? updatedUser : u));
-  };
-
-  const handleWithdraw = (amount: number, accountId: string) => {
-      if (!user) return;
-      const userCountryEntry = Object.entries(LANGUAGES).find(([k, v]) => v.currency === user.currency);
-      const countryCode = userCountryEntry ? userCountryEntry[0] : 'en';
-      const minWithdraw = config.minWithdrawAmount[countryCode] || 100;
-
-      if (amount < minWithdraw) return alert(`${t.minWithdrawErr} ${minWithdraw}`);
-      if (user.balance < amount) return alert(t.insufficient);
-      
-      const account = user.bankAccounts.find(a => a.id === accountId);
-      if (!account) return alert("Invalid account");
-
-      const tx: Transaction = {
-          id: `wd_${Date.now()}`, type: 'withdraw', amount: -amount, date: new Date().toISOString(), description: `Withdraw to ${account.bankName} (${account.accountNumber})`, status: 'pending'
+      const updateUserWithMsg = (u: User) => {
+          const newMessages = [msg, ...u.messages];
+          let newBalance = u.balance;
+          let newTransactions = u.transactions;
+          let newEarnings = u.totalEarnings;
+          if (amount > 0) {
+              newBalance += amount;
+              newEarnings += amount;
+              newTransactions = [tx, ...u.transactions];
+          }
+          return { ...u, messages: newMessages, balance: newBalance, transactions: newTransactions, totalEarnings: newEarnings };
       };
-      
-      const updatedUser: User = {
-          ...user,
-          balance: user.balance - amount,
-          transactions: [tx, ...(user.transactions || [])]
-      };
-      setUser(updatedUser);
-      setUsers(users.map(u => u.id === user.id ? updatedUser : u));
-      alert("Withdrawal submitted!");
-  };
 
-  const handleAdminMessage = (userId: string | 'all', title: string, content: string) => {
-      const msg: Message = {
-          id: `msg_${Date.now()}`, title, content, date: new Date().toISOString(), read: false
-      };
-      
-      if (userId === 'all') {
-          setUsers(users.map(u => ({ ...u, messages: [msg, ...u.messages] })));
-      } else {
-          setUsers(users.map(u => u.id === userId ? { ...u, messages: [msg, ...u.messages] } : u));
-      }
+      if (userId === 'all') setUsers(prev => prev.map(u => updateUserWithMsg(u)));
+      else setUsers(prev => prev.map(u => u.id === userId ? updateUserWithMsg(u) : u));
+
+      if (user && (userId === 'all' || userId === user.id)) setUser(prev => prev ? updateUserWithMsg(prev) : null);
       alert("Message Sent!");
   };
 
-  const handleManageContent = (type: 'task'|'activity', id: string, action: 'delete'|'toggle') => {
+  const handleManageContent = (type: 'task'|'activity'|'user', id: string, action: 'delete'|'toggle'|'pin'|'popup'|'ban') => {
       if (type === 'task') {
-          if (action === 'delete') {
-              setPlatforms(platforms.filter(p => p.id !== id));
-          } else {
-              setPlatforms(platforms.map(p => p.id === id ? { ...p, status: p.status === 'online' ? 'offline' : 'online' } : p));
-          }
-      } else {
-          if (action === 'delete') {
-              setActivities(activities.filter(a => a.id !== id));
-          } else {
-              setActivities(activities.map(a => a.id === id ? { ...a, active: !a.active } : a));
-          }
+          if (action === 'delete') setPlatforms(platforms.filter(p => p.id !== id));
+          else if (action === 'toggle') setPlatforms(platforms.map(p => p.id === id ? { ...p, status: p.status === 'online' ? 'offline' : 'online' } : p));
+          else if (action === 'pin') setPlatforms(platforms.map(p => p.id === id ? { ...p, isPinned: !p.isPinned } : p));
+      } else if (type === 'activity') {
+          if (action === 'delete') setActivities(activities.filter(a => a.id !== id));
+          else if (action === 'toggle') setActivities(activities.map(a => a.id === id ? { ...a, active: !a.active } : a));
+          else if (action === 'popup') setActivities(activities.map(a => a.id === id ? { ...a, showPopup: !a.showPopup } : a));
+      } else if (type === 'user') {
+          if (action === 'ban') setUsers(users.map(u => u.id === id ? { ...u, isBanned: !u.isBanned } : u));
       }
   };
 
+  const handleLikeTask = (id: string) => {
+      if (!user) return;
+      if (user.likedTaskIds.includes(id)) return; // Already liked
+
+      // Update Platform
+      setPlatforms(prev => prev.map(p => p.id === id ? { ...p, likes: (p.likes || 0) + 1 } : p));
+      
+      // Update User
+      const updatedUser = { ...user, likedTaskIds: [...user.likedTaskIds, id] };
+      setUser(updatedUser);
+      setUsers(users.map(u => u.id === user.id ? updatedUser : u));
+  };
+
+  const t = TRANSLATIONS[lang];
+  const clearUnreadTx = () => { if (!user) return; const updatedTxs = user.transactions.map(t => ({ ...t, read: true })); setUser({ ...user, transactions: updatedTxs } as any); }; // Simplified for now
+
   return (
     <Router>
+      {popupData && user && (
+          <RewardPopup amount={popupData.amount} currency={user.currency} title={popupData.title} onClose={() => setPopupData(null)} />
+      )}
+      
       <Routes>
         <Route path="/admin/*" element={
             <AdminApp 
-              users={users} 
-              tasks={platforms} 
-              activities={activities}
-              admins={admins}
-              config={config}
-              updateTaskStatus={updateTaskStatus}
-              updateUserPassword={updateUserPassword}
-              updateConfig={setConfig}
-              sendMessage={handleAdminMessage}
-              // STRICT SANITIZATION WRAPPER
-              addActivity={(a) => {
-                 const safeActivity: Activity = {
-                    ...a,
-                    // FORCE ARRAY RECONSTRUCTION
-                    targetCountries: Array.isArray(a.targetCountries) ? a.targetCountries : ['id']
-                 };
-                 setActivities([...activities, safeActivity]);
-              }}
-              // STRICT SANITIZATION WRAPPER
-              addTask={(task) => {
-                 const safeTask: Platform = {
-                    ...task,
-                    // FORCE ARRAY RECONSTRUCTION
-                    targetCountries: Array.isArray(task.targetCountries) ? task.targetCountries : ['id'],
-                    steps: Array.isArray(task.steps) ? task.steps : ['Download', 'Register', 'Deposit']
-                 };
-                 setPlatforms([...platforms, safeTask]);
-              }}
+              users={users} tasks={platforms} activities={activities} admins={admins} config={config}
+              updateTaskStatus={updateTaskStatus} updateUserPassword={(uid, p) => setUsers(users.map(u => u.id === uid ? { ...u, password: p } : u))}
+              updateConfig={setConfig} sendMessage={handleAdminMessage}
+              addActivity={(a) => setActivities([...activities, a])}
+              addTask={(task) => setPlatforms([...platforms, task])}
               addAdmin={(a) => setAdmins([...admins, a])}
-              manageContent={handleManageContent}
-              lang={lang}
+              manageContent={handleManageContent} lang={lang}
             />
         } />
         
-        <Route path="/login" element={
-          user ? <Navigate to="/" replace /> : <UserLogin onAuth={handleUserAuth} t={t} lang={lang} />
-        } />
+        <Route path="/login" element={user ? <Navigate to="/" replace /> : <UserLogin onAuth={handleUserAuth} t={t} lang={lang} />} />
 
         {user ? (
-          <Route path="/" element={<Layout lang={lang} setLang={setLang} telegramLink={config.telegramLinks[lang] || config.telegramLinks['en']}><Outlet /></Layout>}>
-            <Route index element={<HomeView platforms={platforms} activities={activities} t={t} setSort={setSort} sort={sort} lang={lang} user={user} />} />
-            <Route path="referral" element={<ReferralView user={user} users={users} t={t} lang={lang} />} />
+          <Route path="/" element={<Layout lang={lang} setLang={setLang} telegramLink={config.telegramLinks[lang] || config.telegramLinks['en']} theme={user.theme} hasUnreadMsg={user.messages.some(m => !m.read)} hasUnreadTx={false}><Outlet /></Layout>}>
+            <Route index element={<HomeView platforms={platforms} activities={activities} t={t} setSort={setSort} sort={sort} lang={lang} user={user} config={config} onLikeTask={handleLikeTask} onQuickJoin={handleStartTask} />} />
+            <Route path="referral" element={<ReferralView user={user} users={users} t={t} lang={lang} config={config} />} />
             <Route path="tasks" element={<MyTasksView user={user} onSubmitProof={handleSubmitProof} t={t} lang={lang} />} />
-            <Route path="profile" element={<ProfileView user={user} t={t} logout={() => setUser(null)} lang={lang} onBindCard={handleBindCard} onWithdraw={handleWithdraw} />} />
+            <Route path="profile" element={<ProfileView user={user} t={t} logout={() => setUser(null)} lang={lang} onBindCard={(b,n,no,type) => { const u = {...user, bankAccounts: [...user.bankAccounts, {id:'a'+Date.now(), bankName:b, accountName:n, accountNumber:no, type}]}; setUser(u); setUsers(users.map(us=>us.id===u.id?u:us)); }} onWithdraw={(a, id) => { /* simplified withdraw */ }} toggleTheme={() => setUser({...user, theme: user.theme==='gold'?'dark':'gold'})} minWithdraw={100} clearUnreadTx={clearUnreadTx} />} />
+            <Route path="mailbox" element={<MailboxView user={user} t={t} markAllRead={() => { const u = {...user, messages: user.messages.map(m=>({...m, read:true}))}; setUser(u); setUsers(users.map(us=>us.id===u.id?u:us)); }} />} />
             <Route path="task-detail/:id" element={<TaskDetailView platforms={platforms} onStartTask={handleStartTask} t={t} lang={lang} user={user} />} />
             <Route path="activity/:id" element={<ActivityDetailView activities={activities} t={t} />} />
+            <Route path="help" element={<StaticPageView title="Help Center" content={config.helpContent} />} />
+            <Route path="about" element={<StaticPageView title="About Us" content={config.aboutContent} />} />
+            <Route path="transactions" element={<TransactionHistoryView user={user} t={t} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         ) : (

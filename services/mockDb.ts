@@ -1,4 +1,4 @@
-import { User, Platform, Activity, Admin, SystemConfig } from '../types';
+import { User, Platform, Activity, Admin, SystemConfig, VipTier } from '../types';
 import { MOCK_PLATFORMS, MOCK_ACTIVITIES } from '../constants';
 
 // Keys for LocalStorage
@@ -18,6 +18,19 @@ const DEFAULT_ADMIN: Admin = {
   role: 'super_admin'
 };
 
+// Generate 20 VIP Levels
+const generateDefaultVipConfig = (): VipTier[] => {
+    const levels: VipTier[] = [];
+    for(let i=1; i<=20; i++) {
+        levels.push({
+            level: i,
+            threshold: i === 1 ? 0 : (i - 1) * 100, // e.g., L2=100, L3=200...
+            reward: i === 1 ? 0 : i * 5 // e.g. L2=10, L3=15...
+        });
+    }
+    return levels;
+};
+
 // Default Config
 const DEFAULT_CONFIG: SystemConfig = {
   initialBalance: { en: 0, zh: 0, id: 0, th: 0, vi: 0, ms: 0, tl: 0 },
@@ -30,56 +43,92 @@ const DEFAULT_CONFIG: SystemConfig = {
     vi: 'https://t.me/betbounty_vn',
     ms: 'https://t.me/betbounty_my',
     tl: 'https://t.me/betbounty_ph'
+  },
+  hypeLevel: 5, 
+  helpContent: 'Welcome to the help center.',
+  aboutContent: 'About us content goes here.',
+  vipConfig: generateDefaultVipConfig()
+};
+
+// Ensure mock platforms have 'likes' property if old data is loaded
+const enrichPlatforms = (platforms: Platform[]): Platform[] => {
+    return platforms.map(p => ({
+        ...p,
+        likes: p.likes || Math.floor(Math.random() * 1000)
+    }));
+};
+
+// Helper to safely save to localStorage without crashing
+const safeSave = (key: string, data: any) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (error) {
+    console.error(`Error saving to ${key}:`, error);
+    if (error instanceof DOMException && (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+       console.warn("LocalStorage Quota Exceeded. Data not saved to disk, but stays in memory.");
+    }
   }
 };
 
 export const MockDb = {
   // --- Users ---
   getUsers: (): User[] => {
-    const data = localStorage.getItem(KEYS.USERS);
-    return data ? JSON.parse(data) : [];
+    try {
+      const data = localStorage.getItem(KEYS.USERS);
+      return data ? JSON.parse(data) : [];
+    } catch { return []; }
   },
   saveUsers: (users: User[]) => {
-    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+    safeSave(KEYS.USERS, users);
   },
 
   // --- Platforms (Tasks) ---
   getPlatforms: (): Platform[] => {
-    const data = localStorage.getItem(KEYS.PLATFORMS);
-    return data ? JSON.parse(data) : MOCK_PLATFORMS;
+    try {
+      const data = localStorage.getItem(KEYS.PLATFORMS);
+      return data ? enrichPlatforms(JSON.parse(data)) : enrichPlatforms(MOCK_PLATFORMS);
+    } catch { return enrichPlatforms(MOCK_PLATFORMS); }
   },
   savePlatforms: (platforms: Platform[]) => {
-    localStorage.setItem(KEYS.PLATFORMS, JSON.stringify(platforms));
+    safeSave(KEYS.PLATFORMS, platforms);
   },
 
   // --- Activities ---
   getActivities: (): Activity[] => {
-    const data = localStorage.getItem(KEYS.ACTIVITIES);
-    return data ? JSON.parse(data) : MOCK_ACTIVITIES;
+    try {
+      const data = localStorage.getItem(KEYS.ACTIVITIES);
+      return data ? JSON.parse(data) : MOCK_ACTIVITIES;
+    } catch { return MOCK_ACTIVITIES; }
   },
   saveActivities: (activities: Activity[]) => {
-    localStorage.setItem(KEYS.ACTIVITIES, JSON.stringify(activities));
+    safeSave(KEYS.ACTIVITIES, activities);
   },
 
   // --- Admins ---
   getAdmins: (): Admin[] => {
-    const data = localStorage.getItem(KEYS.ADMINS);
-    if (!data) {
-      localStorage.setItem(KEYS.ADMINS, JSON.stringify([DEFAULT_ADMIN]));
-      return [DEFAULT_ADMIN];
-    }
-    return JSON.parse(data);
+    try {
+      const data = localStorage.getItem(KEYS.ADMINS);
+      if (!data) {
+        safeSave(KEYS.ADMINS, [DEFAULT_ADMIN]);
+        return [DEFAULT_ADMIN];
+      }
+      return JSON.parse(data);
+    } catch { return [DEFAULT_ADMIN]; }
   },
   saveAdmins: (admins: Admin[]) => {
-    localStorage.setItem(KEYS.ADMINS, JSON.stringify(admins));
+    safeSave(KEYS.ADMINS, admins);
   },
 
   // --- System Config ---
   getConfig: (): SystemConfig => {
-    const data = localStorage.getItem(KEYS.CONFIG);
-    return data ? JSON.parse(data) : DEFAULT_CONFIG;
+    try {
+      const data = localStorage.getItem(KEYS.CONFIG);
+      const loaded = data ? JSON.parse(data) : DEFAULT_CONFIG;
+      // Merge for backward compatibility
+      return { ...DEFAULT_CONFIG, ...loaded };
+    } catch { return DEFAULT_CONFIG; }
   },
   saveConfig: (config: SystemConfig) => {
-    localStorage.setItem(KEYS.CONFIG, JSON.stringify(config));
+    safeSave(KEYS.CONFIG, config);
   }
 };

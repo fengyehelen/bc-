@@ -11,7 +11,15 @@
         font-family: 'Inter', sans-serif;
         background-color: #0f172a; /* Slate 900 */
         color: #e2e8f0; /* Slate 200 */
+        transition: background-color 0.3s, color 0.3s;
+        -webkit-tap-highlight-color: transparent;
       }
+      /* Theme: Gold/Light */
+      body.theme-gold {
+          background-color: #f8fafc;
+          color: #1e293b;
+      }
+      
       /* Hide scrollbar for clean UI */
       .no-scrollbar::-webkit-scrollbar {
         display: none;
@@ -21,36 +29,72 @@
         scrollbar-width: none;
       }
       
-      /* Custom Animations */
-      @keyframes gradient-move {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-      }
-      .animate-gradient-bg {
-          background-size: 200% 200%;
-          animation: gradient-move 15s ease infinite;
-      }
-
+      /* Base Animations */
       @keyframes fade-in-up {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
       }
       .animate-entry {
           animation: fade-in-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-          opacity: 0; /* Start hidden */
+          opacity: 0;
       }
-      .delay-100 { animation-delay: 100ms; }
-      .delay-200 { animation-delay: 200ms; }
-      .delay-300 { animation-delay: 300ms; }
+
+      /* Vertical Scroll Marquee */
+      @keyframes scroll-vertical {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(-50%); }
+      }
+      .animate-scroll-vertical {
+        animation: scroll-vertical 10s linear infinite; 
+      }
+
+      /* SUPER COIN EXPLOSION ANIMATION */
+      @keyframes coin-pulse-core {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.7); }
+        50% { transform: scale(1.05); box-shadow: 0 0 20px 10px rgba(250, 204, 21, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
+      }
       
-      @keyframes float {
-          0% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
-          100% { transform: translateY(0px); }
+      @keyframes particle-tl { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(-40px, -40px) scale(0); opacity:0; } }
+      @keyframes particle-tr { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(40px, -40px) scale(0); opacity:0; } }
+      @keyframes particle-bl { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(-40px, 40px) scale(0); opacity:0; } }
+      @keyframes particle-br { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(40px, 40px) scale(0); opacity:0; } }
+      @keyframes particle-top { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(0, -50px) scale(0); opacity:0; } }
+
+      .btn-earn-anim {
+        animation: coin-pulse-core 1.5s infinite;
+        position: relative;
+        z-index: 10;
       }
-      .animate-float {
-          animation: float 6s ease-in-out infinite;
+      
+      /* Explosion Particles using pseudo elements */
+      .btn-earn-anim::before, .btn-earn-anim::after {
+        content: ''; position: absolute; width: 6px; height: 6px; background: #fbbf24; border-radius: 50%; top: 50%; left: 50%; z-index: -1; pointer-events: none;
+      }
+      .btn-earn-anim span::before, .btn-earn-anim span::after {
+        content: ''; position: absolute; width: 4px; height: 4px; background: #fef08a; border-radius: 50%; top: 50%; left: 50%; z-index: -1; pointer-events: none;
+      }
+      
+      .btn-earn-anim::before { animation: particle-tl 1.5s infinite; }
+      .btn-earn-anim::after { animation: particle-tr 1.5s infinite 0.1s; }
+      .btn-earn-anim span::before { animation: particle-bl 1.5s infinite 0.2s; }
+      .btn-earn-anim span::after { animation: particle-br 1.5s infinite 0.3s; }
+      
+      /* Extra particle added via JS/React usually, but here via extra class if needed */
+      .particle-extra {
+         position: absolute; width: 5px; height: 5px; background: #fff; border-radius: 50%; top: 50%; left: 50%; z-index: -1;
+         animation: particle-top 1.5s infinite 0.4s;
+      }
+
+      /* Popup Bounce */
+      @keyframes bounce-in {
+        0% { transform: scale(0.3); opacity: 0; }
+        50% { transform: scale(1.05); opacity: 1; }
+        70% { transform: scale(0.9); }
+        100% { transform: scale(1); }
+      }
+      .animate-bounce-in {
+        animation: bounce-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
       }
     </style>
   <script type="importmap">
@@ -68,6 +112,5 @@
 </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

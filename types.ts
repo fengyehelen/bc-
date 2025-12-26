@@ -10,8 +10,10 @@ export interface Platform {
   rewardAmount: number;
   launchDate: string;
   isHot?: boolean;
+  isPinned?: boolean; 
   remainingQty: number;
   totalQty: number;
+  likes?: number; 
   steps: string[];
   rules: string;
   status: 'online' | 'offline';
@@ -34,7 +36,7 @@ export interface UserTask {
 
 export interface Transaction {
   id: string;
-  type: 'task_reward' | 'referral_bonus' | 'withdraw' | 'system_bonus';
+  type: 'task_reward' | 'referral_bonus' | 'withdraw' | 'system_bonus' | 'admin_gift' | 'vip_bonus';
   amount: number;
   date: string;
   description: string;
@@ -47,14 +49,15 @@ export interface Message {
   content: string;
   date: string;
   read: boolean;
+  rewardAmount?: number;
 }
 
 export interface BankAccount {
   id: string;
   bankName: string;
-  accountName: string;
-  accountNumber: string;
-  type: 'bank' | 'ewallet';
+  accountName: string; 
+  accountNumber: string; 
+  type: 'bank' | 'ewallet' | 'crypto'; 
 }
 
 export interface User {
@@ -62,17 +65,21 @@ export interface User {
   phone: string;
   password?: string;
   balance: number;
-  currency: string; // Fixed currency unit for the user
+  currency: string; 
   totalEarnings: number;
+  vipLevel: number; // New: 1-20
   referralCode: string;
   referrerId?: string; 
   invitedCount: number;
   myTasks: UserTask[];
+  likedTaskIds: string[]; // New: Track liked tasks
   registrationDate: string;
   bankAccounts: BankAccount[]; 
   role: 'user' | 'admin';
   messages: Message[];
   transactions: Transaction[];
+  theme?: 'dark' | 'gold';
+  isBanned?: boolean; 
 }
 
 export interface Admin {
@@ -89,17 +96,28 @@ export interface Activity {
   content: string;
   link: string;
   active: boolean;
+  showPopup?: boolean; 
   targetCountries: Language[];
 }
 
+export interface VipTier {
+    level: number;
+    threshold: number; // Earnings required
+    reward: number; // Upgrade bonus
+}
+
 export interface SystemConfig {
-  initialBalance: Record<string, number>; // Country specific
-  minWithdrawAmount: Record<string, number>; // Country specific
+  initialBalance: Record<string, number>; 
+  minWithdrawAmount: Record<string, number>;
   telegramLinks: Record<string, string>;
+  hypeLevel: number; 
+  helpContent: string; 
+  aboutContent: string; 
+  vipConfig: VipTier[]; // New: VIP settings
 }
 
 export enum SortOption {
   NEWEST = 'NEWEST',
   HIGHEST_REWARD = 'HIGHEST_REWARD',
-  LOWEST_DEPOSIT = 'LOWEST_DEPOSIT'
+  POPULAR = 'POPULAR'
 }
