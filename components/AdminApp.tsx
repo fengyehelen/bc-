@@ -4,7 +4,7 @@ import { generatePlatformInfo, generatePlatformLogo } from '../services/geminiSe
 import { LANGUAGES } from '../constants';
 import { 
   Shield, CheckCircle, User as UserIcon, List, Image, Key, LogOut, ArrowLeft,
-  LayoutDashboard, Sparkles, Wand2, Zap, Lock, Settings, Mail, Send, Trash2, Power, Plus, X, Save, Coins, BarChart3, Pin, Ban, Crown
+  LayoutDashboard, Sparkles, Wand2, Zap, Lock, Settings, Mail, Send, Trash2, Power, Plus, X, Save, Coins, BarChart3, Pin, Ban, Crown, Wallet
 } from 'lucide-react';
 
 interface AdminAppProps {
@@ -56,20 +56,36 @@ const AdminLogin: React.FC<{ onLogin: (u: string, p: string) => void }> = ({ onL
   );
 };
 
+// --- DASHBOARD CHART ---
+const SimpleLineChart: React.FC<{ data: number[], color: string }> = ({ data, color }) => {
+    const max = Math.max(...data, 1);
+    const points = data.map((val, i) => `${(i / (data.length - 1)) * 100},${100 - (val / max) * 100}`).join(' ');
+    return (
+        <div className="h-16 w-full relative overflow-hidden">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
+                <polyline fill="none" stroke={color} strokeWidth="2" points={points} />
+            </svg>
+        </div>
+    );
+};
+
 // --- MAIN ADMIN ---
 const AdminApp: React.FC<AdminAppProps> = (props) => {
   const [session, setSession] = useState<Admin | null>(null);
-  const [view, setView] = useState<'audit' | 'users' | 'tasks' | 'activities' | 'admins' | 'config' | 'messages'>('audit');
+  const [view, setView] = useState<'dashboard' | 'audit' | 'withdrawals' | 'users' | 'tasks' | 'activities' | 'admins' | 'config' | 'messages'>('dashboard');
   const [hasApiKey, setHasApiKey] = useState(false);
   
   // --- FORM STATES ---
   const [actTitle, setActTitle] = useState('');
+  const [actTitleColor, setActTitleColor] = useState('#ffffff');
   const [actContent, setActContent] = useState('');
   const [actImage, setActImage] = useState('');
   const [actCountry, setActCountry] = useState<string>('id'); 
 
   const [taskName, setTaskName] = useState('');
+  const [taskNameColor, setTaskNameColor] = useState('#ffffff');
   const [taskDesc, setTaskDesc] = useState('');
+  const [taskDescColor, setTaskDescColor] = useState('#cbd5e1');
   const [taskReward, setTaskReward] = useState<string>('0'); 
   const [taskLink, setTaskLink] = useState('');
   const [taskImage, setTaskImage] = useState('');
@@ -77,12 +93,23 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
   const [taskTotalQty, setTaskTotalQty] = useState<string>('100'); 
   const [taskSteps, setTaskSteps] = useState<string[]>(['Download App', 'Register', 'Deposit']);
 
+  // Admin Config State
+  const [vipCountry, setVipCountry] = useState<string>('id');
   const [isGenerating, setIsGenerating] = useState(false);
   const [newAdmin, setNewAdmin] = useState({ username: '', password: '', role: 'editor' });
   const [msgData, setMsgData] = useState({ userId: 'all', title: '', content: '', amount: '0' }); 
   const [userSort, setUserSort] = useState<'reg' | 'bal' | 'earnings'>('reg');
 
   useEffect(() => { checkApiKey(); }, []);
+
+  // Session Persistence
+  useEffect(() => {
+      const savedAdminId = localStorage.getItem('betbounty_admin_session');
+      if (savedAdminId) {
+          const admin = props.admins.find(a => a.id === savedAdminId);
+          if (admin) setSession(admin);
+      }
+  }, [props.admins]);
 
   const checkApiKey = async () => {
     // @ts-ignore
@@ -96,8 +123,15 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
 
   const handleLogin = (u: string, p: string) => {
     const admin = props.admins.find(a => a.username === u && a.password === p);
-    if (admin) setSession(admin);
-    else alert("Invalid credentials");
+    if (admin) {
+        setSession(admin);
+        localStorage.setItem('betbounty_admin_session', admin.id);
+    } else alert("Invalid credentials");
+  };
+
+  const handleLogout = () => {
+      setSession(null);
+      localStorage.removeItem('betbounty_admin_session');
   };
 
   // --- HELPERS ---
@@ -152,7 +186,9 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
   };
 
   const resetTaskForm = () => {
-      setTaskName(''); setTaskDesc(''); setTaskReward('0'); setTaskLink('');
+      setTaskName(''); setTaskNameColor('#ffffff');
+      setTaskDesc(''); setTaskDescColor('#cbd5e1');
+      setTaskReward('0'); setTaskLink('');
       setTaskImage(''); setTaskCountry('id'); setTaskTotalQty('100');
       setTaskSteps(['Download App', 'Register', 'Deposit']);
   };
@@ -164,7 +200,9 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
       const newTask: Platform = {
           id: 't_' + Date.now(),
           name: taskName,
+          nameColor: taskNameColor,
           description: taskDesc || 'No description',
+          descColor: taskDescColor,
           logoUrl: taskImage || 'https://via.placeholder.com/100',
           downloadLink: taskLink,
           rewardAmount: Number(taskReward) || 0,
@@ -189,6 +227,7 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
       const newAct: Activity = {
           id: 'a_' + Date.now(),
           title: actTitle,
+          titleColor: actTitleColor,
           content: actContent,
           imageUrl: actImage || 'https://via.placeholder.com/400x200',
           link: '#',
@@ -197,7 +236,7 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
           targetCountries: [actCountry as Language]
       };
       props.addActivity(newAct);
-      setActTitle(''); setActContent(''); setActImage('');
+      setActTitle(''); setActTitleColor('#ffffff'); setActContent(''); setActImage('');
       alert("Activity Published!");
   };
 
@@ -223,33 +262,73 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
   if (!session) return <AdminLogin onLogin={handleLogin} />;
 
   const auditTasks = props.users.flatMap(u => (u.myTasks || []).filter(t => t.status === 'reviewing'));
+  const withdrawals = props.users.flatMap(u => (u.transactions || [])
+      .filter(tx => tx.type === 'withdraw')
+      .map(tx => ({...tx, user: u}))
+  ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
   const sortedUsers = [...props.users].sort((a, b) => {
       if (userSort === 'bal') return b.balance - a.balance;
       if (userSort === 'earnings') return b.totalEarnings - a.totalEarnings;
       return new Date(b.registrationDate).getTime() - new Date(a.registrationDate).getTime();
   });
 
+  // Dashboard Stats
+  const totalUsers = props.users.length;
+  const totalWithdrawals = withdrawals.reduce((sum, w) => sum + Math.abs(w.amount), 0);
+  const totalCommissions = props.users.flatMap(u => u.transactions).filter(t => t.type === 'referral_bonus').reduce((sum, t) => sum + t.amount, 0);
+  
+  // Mock Data for Charts (7 days)
+  const chartData = [12, 19, 3, 5, 2, 3, totalUsers]; // New Users
+  const payoutData = [500, 1000, 750, 200, 1500, 300, totalWithdrawals/1000]; // Payouts scaled
+
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans text-slate-800">
       <aside className="w-64 bg-slate-900 text-white flex flex-col fixed h-full shadow-2xl z-10">
         <div className="p-6 border-b border-slate-800"><h1 className="text-xl font-bold flex items-center gap-2 text-white"><Shield className="text-yellow-400" /><span>Admin Panel</span></h1></div>
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+            <button onClick={() => setView('dashboard')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 ${view === 'dashboard' ? 'bg-indigo-600' : 'text-slate-400 hover:bg-slate-800'}`}><LayoutDashboard size={18} /> <span>Dashboard</span></button>
             <button onClick={() => setView('audit')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 ${view === 'audit' ? 'bg-indigo-600' : 'text-slate-400 hover:bg-slate-800'}`}><CheckCircle size={18} /> <span>Audit Queue</span>{auditTasks.length > 0 && <span className="ml-auto bg-red-500 text-[10px] px-2 rounded-full">{auditTasks.length}</span>}</button>
+            <button onClick={() => setView('withdrawals')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 ${view === 'withdrawals' ? 'bg-indigo-600' : 'text-slate-400 hover:bg-slate-800'}`}><Wallet size={18} /> <span>Withdrawals</span></button>
             <button onClick={() => setView('users')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 ${view === 'users' ? 'bg-indigo-600' : 'text-slate-400 hover:bg-slate-800'}`}><UserIcon size={18} /> <span>Users</span></button>
             <button onClick={() => setView('tasks')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 ${view === 'tasks' ? 'bg-indigo-600' : 'text-slate-400 hover:bg-slate-800'}`}><List size={18} /> <span>Tasks</span></button>
             <button onClick={() => setView('activities')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 ${view === 'activities' ? 'bg-indigo-600' : 'text-slate-400 hover:bg-slate-800'}`}><Image size={18} /> <span>Activities</span></button>
             <button onClick={() => setView('messages')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 ${view === 'messages' ? 'bg-indigo-600' : 'text-slate-400 hover:bg-slate-800'}`}><Mail size={18} /> <span>Messages</span></button>
             <button onClick={() => setView('config')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 ${view === 'config' ? 'bg-indigo-600' : 'text-slate-400 hover:bg-slate-800'}`}><Settings size={18} /> <span>Config</span></button>
-            <button onClick={() => setView('admins')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 ${view === 'admins' ? 'bg-indigo-600' : 'text-slate-400 hover:bg-slate-800'}`}><Key size={18} /> <span>Admins</span></button>
+            {session.role === 'super_admin' && (
+                <button onClick={() => setView('admins')} className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 ${view === 'admins' ? 'bg-indigo-600' : 'text-slate-400 hover:bg-slate-800'}`}><Key size={18} /> <span>Admins</span></button>
+            )}
         </nav>
         <div className="p-4 border-t border-slate-800">
              {!hasApiKey && <button onClick={handleConnectAI} className="w-full bg-slate-800 text-yellow-400 text-xs py-2 rounded border border-slate-700 mb-2"><Zap size={12} className="inline mr-1" /> Connect AI</button>}
-             <button onClick={() => setSession(null)} className="flex items-center gap-2 text-slate-400 hover:text-white text-sm w-full px-4 py-2 hover:bg-slate-800 rounded-lg"><LogOut size={16} /> Logout</button>
+             <button onClick={handleLogout} className="flex items-center gap-2 text-slate-400 hover:text-white text-sm w-full px-4 py-2 hover:bg-slate-800 rounded-lg"><LogOut size={16} /> Logout</button>
         </div>
       </aside>
 
       <main className="flex-1 ml-64 p-8 overflow-y-auto">
         <header className="flex justify-between items-center mb-8"><h2 className="text-2xl font-bold text-slate-800 capitalize">{view} Management</h2><div className="text-right"><p className="text-sm font-bold text-slate-800">{session.username}</p><p className="text-xs text-slate-500 uppercase">{session.role}</p></div></header>
+
+        {view === 'dashboard' && (
+            <div className="grid grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Total Users</h3>
+                    <p className="text-3xl font-bold text-indigo-600">{totalUsers}</p>
+                    <div className="mt-4"><SimpleLineChart data={chartData} color="#4f46e5" /></div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Total Payout</h3>
+                    <p className="text-3xl font-bold text-green-600">${totalWithdrawals.toLocaleString()}</p>
+                    <div className="mt-4"><SimpleLineChart data={payoutData} color="#16a34a" /></div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Commission Paid</h3>
+                    <p className="text-3xl font-bold text-orange-500">${totalCommissions.toLocaleString()}</p>
+                    <div className="mt-4 h-16 flex items-end gap-1">
+                        {[40, 60, 30, 80, 50, 90, 70].map((h, i) => <div key={i} className="flex-1 bg-orange-200 rounded-t" style={{height: `${h}%`}}></div>)}
+                    </div>
+                </div>
+            </div>
+        )}
 
         {view === 'audit' && (
            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -274,6 +353,26 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                 </tbody>
              </table>
            </div>
+        )}
+
+        {view === 'withdrawals' && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200"><tr><th className="p-4">Date</th><th className="p-4">User</th><th className="p-4">Amount</th><th className="p-4">Bank/Wallet</th><th className="p-4">Status</th></tr></thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {withdrawals.length === 0 && <tr><td colSpan={5} className="p-12 text-center text-slate-400">No withdrawals found.</td></tr>}
+                        {withdrawals.map(tx => (
+                            <tr key={tx.id}>
+                                <td className="p-4 text-xs text-slate-500">{new Date(tx.date).toLocaleString()}</td>
+                                <td className="p-4"><div className="font-bold">{tx.user.phone}</div><div className="text-xs text-slate-400">ID: {tx.user.id}</div></td>
+                                <td className="p-4 font-mono font-bold text-red-600">{Math.abs(tx.amount)}</td>
+                                <td className="p-4 text-sm">{tx.description}</td>
+                                <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold uppercase ${tx.status === 'success' ? 'bg-green-100 text-green-700' : tx.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{tx.status}</span></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         )}
 
         {view === 'users' && (
@@ -321,8 +420,10 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                   </div>
                   <div className="grid grid-cols-2 gap-6">
                      <div className="space-y-4">
-                         <div className="space-y-1"><div className="flex justify-between"><label className="text-xs font-bold uppercase text-slate-500">Platform Name</label><button onClick={aiFillTask} disabled={isGenerating} className="text-[10px] bg-indigo-50 text-indigo-600 px-2 rounded flex items-center gap-1 hover:bg-indigo-100"><Sparkles size={10}/> AI Fill</button></div><input type="text" value={taskName} onChange={e => setTaskName(e.target.value)} className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="e.g. RoyalWin88" /></div>
-                         <div className="space-y-1"><label className="text-xs font-bold uppercase text-slate-500">Description</label><input type="text" value={taskDesc} onChange={e => setTaskDesc(e.target.value)} className="w-full border border-slate-300 p-2.5 rounded-lg focus:outline-none" placeholder="Short marketing text" /></div>
+                         <div className="space-y-1"><div className="flex justify-between"><label className="text-xs font-bold uppercase text-slate-500">Platform Name</label><button onClick={aiFillTask} disabled={isGenerating} className="text-[10px] bg-indigo-50 text-indigo-600 px-2 rounded flex items-center gap-1 hover:bg-indigo-100"><Sparkles size={10}/> AI Fill</button></div><input type="text" value={taskName} onChange={e => setTaskName(e.target.value)} className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="e.g. RoyalWin88" />
+                         <div className="mt-1 flex items-center gap-2"><label className="text-[10px]">Text Color:</label><input type="color" value={taskNameColor} onChange={e => setTaskNameColor(e.target.value)} /></div></div>
+                         <div className="space-y-1"><label className="text-xs font-bold uppercase text-slate-500">Description</label><input type="text" value={taskDesc} onChange={e => setTaskDesc(e.target.value)} className="w-full border border-slate-300 p-2.5 rounded-lg focus:outline-none" placeholder="Short marketing text" />
+                         <div className="mt-1 flex items-center gap-2"><label className="text-[10px]">Text Color:</label><input type="color" value={taskDescColor} onChange={e => setTaskDescColor(e.target.value)} /></div></div>
                          <div className="space-y-1"><label className="text-xs font-bold uppercase text-slate-500">Reward Amount</label><div className="flex items-center"><span className="bg-slate-100 border border-slate-300 border-r-0 p-2.5 rounded-l-lg text-slate-500 text-sm">$</span><input type="number" value={taskReward} onChange={e => setTaskReward(e.target.value)} className="w-full border border-slate-300 p-2.5 rounded-r-lg focus:outline-none font-mono font-bold" placeholder="50000" /></div><p className="text-[10px] text-slate-400 italic">User sees currency symbol based on their country setting.</p></div>
                          <div className="space-y-1"><label className="text-xs font-bold uppercase text-slate-500">Task Link (URL)</label><input type="text" value={taskLink} onChange={e => setTaskLink(e.target.value)} className="w-full border border-slate-300 p-2.5 rounded-lg focus:outline-none" placeholder="https://..." /></div>
                          <div className="space-y-1"><label className="text-xs font-bold uppercase text-slate-500">Logo</label><div className="flex gap-2 items-center">{taskImage ? <img src={taskImage} className="w-12 h-12 rounded-lg border" /> : <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center text-slate-300"><Image size={20}/></div>}<input type="file" onChange={e => handleImageUpload(e, setTaskImage)} className="text-xs w-full" /><button onClick={aiLogoTask} disabled={isGenerating} className="text-xs bg-slate-800 text-white px-3 py-2 rounded-lg flex items-center gap-1 hover:bg-slate-700 whitespace-nowrap"><Wand2 size={12}/> AI Gen</button></div><p className="text-[10px] text-indigo-500 font-bold">Rec: 200x200, Max 200KB</p></div>
@@ -341,7 +442,7 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                            <div className="flex items-center gap-4">
                                <img src={t.logoUrl || ''} className="w-12 h-12 rounded-lg bg-slate-100 object-cover" />
                                <div>
-                                   <div className="flex items-center gap-2"><h3 className="font-bold text-slate-800">{t.name}</h3>{t.isPinned && <span className="bg-red-100 text-red-600 text-[10px] px-1 rounded font-bold">TOP</span>}</div>
+                                   <div className="flex items-center gap-2"><h3 className="font-bold text-slate-800" style={{color: t.nameColor}}>{t.name}</h3>{t.isPinned && <span className="bg-red-100 text-red-600 text-[10px] px-1 rounded font-bold">TOP</span>}</div>
                                    <div className="flex gap-2 mt-1">{(t.targetCountries || []).map(tc => <span key={tc} className="bg-slate-100 text-[10px] px-1.5 py-0.5 rounded text-slate-500 uppercase">{tc}</span>)}<span className="bg-slate-100 text-[10px] px-1.5 py-0.5 rounded text-slate-500">Qty: {t.totalQty}</span></div>
                                </div>
                            </div>
@@ -364,7 +465,8 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                   <h3 className="font-bold text-lg text-slate-800 mb-6">Publish Activity</h3>
                   <div className="grid grid-cols-2 gap-6">
                        <div className="space-y-4">
-                           <div><label className="text-xs font-bold uppercase text-slate-500">Title</label><input value={actTitle} onChange={e => setActTitle(e.target.value)} className="w-full border p-2 rounded-lg mt-1" /></div>
+                           <div><label className="text-xs font-bold uppercase text-slate-500">Title</label><input value={actTitle} onChange={e => setActTitle(e.target.value)} className="w-full border p-2 rounded-lg mt-1" />
+                           <div className="mt-1 flex items-center gap-2"><label className="text-[10px]">Text Color:</label><input type="color" value={actTitleColor} onChange={e => setActTitleColor(e.target.value)} /></div></div>
                            <div>
                                <label className="text-xs font-bold uppercase text-slate-500">Image</label>
                                <input type="file" onChange={e => handleImageUpload(e, setActImage)} className="block w-full text-xs mt-1"/>
@@ -382,7 +484,7 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                <div className="grid grid-cols-1 gap-3">
                    {(props.activities || []).map(a => (
                        <div key={a.id} className="bg-white p-4 rounded-lg border border-slate-200 flex justify-between items-center">
-                           <div className="flex items-center gap-4"><img src={a.imageUrl || ''} className="w-16 h-10 rounded bg-slate-100 object-cover" /><div><h3 className="font-bold text-slate-800">{a.title}</h3><div className="text-xs text-slate-500">{(a.targetCountries || []).join(', ').toUpperCase()}</div></div></div>
+                           <div className="flex items-center gap-4"><img src={a.imageUrl || ''} className="w-16 h-10 rounded bg-slate-100 object-cover" /><div><h3 className="font-bold text-slate-800" style={{color: a.titleColor}}>{a.title}</h3><div className="text-xs text-slate-500">{(a.targetCountries || []).join(', ').toUpperCase()}</div></div></div>
                            <div className="flex items-center gap-2">
                                <button onClick={() => props.manageContent('activity', a.id, 'popup')} className={`p-2 rounded-lg flex items-center gap-1 text-xs font-bold ${a.showPopup ? 'text-purple-600 bg-purple-50' : 'text-slate-400 bg-slate-100'}`}><Image size={14}/> Popup</button>
                                <button onClick={() => props.manageContent('activity', a.id, 'toggle')} className={`p-2 rounded-lg ${a.active ? 'text-green-600 bg-green-50' : 'text-slate-400 bg-slate-100'}`}><Power size={18}/></button>
@@ -408,25 +510,36 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                   
                   {/* VIP Config Section */}
                   <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100">
-                      <h4 className="text-sm font-bold text-yellow-800 mb-2 flex items-center gap-2"><Crown size={16}/> VIP Level Configuration (1-20)</h4>
+                      <div className="flex justify-between items-center mb-4">
+                          <h4 className="text-sm font-bold text-yellow-800 flex items-center gap-2"><Crown size={16}/> VIP Level Configuration</h4>
+                          <select value={vipCountry} onChange={e => setVipCountry(e.target.value)} className="text-xs border rounded p-1">
+                              {COUNTRIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                          </select>
+                      </div>
+                      
                       <div className="max-h-48 overflow-y-auto space-y-2 pr-2">
-                          {(props.config.vipConfig || []).map((vip, idx) => (
+                          {/* Use vipConfig[country] safely */}
+                          {(props.config.vipConfig?.[vipCountry] || []).map((vip, idx) => (
                               <div key={vip.level} className="flex items-center gap-3 text-xs">
                                   <span className="font-bold w-12 text-yellow-700">LV {vip.level}</span>
                                   <div className="flex-1 flex items-center gap-2">
                                       <span>Threshold:</span>
                                       <input type="number" value={vip.threshold} onChange={e => {
-                                          const newVip = [...props.config.vipConfig];
-                                          newVip[idx].threshold = parseInt(e.target.value);
-                                          props.updateConfig({...props.config, vipConfig: newVip});
+                                          const newConfig = {...props.config};
+                                          if (!newConfig.vipConfig) newConfig.vipConfig = {};
+                                          if (!newConfig.vipConfig[vipCountry]) newConfig.vipConfig[vipCountry] = [];
+                                          newConfig.vipConfig[vipCountry][idx].threshold = parseInt(e.target.value);
+                                          props.updateConfig(newConfig);
                                       }} className="w-20 border rounded p-1" />
                                   </div>
                                   <div className="flex-1 flex items-center gap-2">
                                       <span>Reward:</span>
                                       <input type="number" value={vip.reward} onChange={e => {
-                                          const newVip = [...props.config.vipConfig];
-                                          newVip[idx].reward = parseInt(e.target.value);
-                                          props.updateConfig({...props.config, vipConfig: newVip});
+                                          const newConfig = {...props.config};
+                                          if (!newConfig.vipConfig) newConfig.vipConfig = {};
+                                          if (!newConfig.vipConfig[vipCountry]) newConfig.vipConfig[vipCountry] = [];
+                                          newConfig.vipConfig[vipCountry][idx].reward = parseInt(e.target.value);
+                                          props.updateConfig(newConfig);
                                       }} className="w-20 border rounded p-1" />
                                   </div>
                               </div>
@@ -454,6 +567,19 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                  <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Gift Amount (Optional)</label><input type="number" value={msgData.amount} onChange={e => setMsgData({...msgData, amount: e.target.value})} className="w-full border p-2 rounded" /></div>
                  <button onClick={handleSendMessage} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-700"><Send size={16}/> Send Message</button>
               </div>
+           </div>
+        )}
+
+        {view === 'admins' && (
+           <div className="space-y-6">
+              {session.role === 'super_admin' ? (
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 max-w-lg">
+                      <h3 className="font-bold mb-4">Create Admin</h3>
+                      <div className="space-y-4 mb-4"><input type="text" placeholder="Username" value={newAdmin.username} onChange={e => setNewAdmin({...newAdmin, username: e.target.value})} className="w-full border p-2 rounded" /><input type="password" placeholder="Password" value={newAdmin.password} onChange={e => setNewAdmin({...newAdmin, password: e.target.value})} className="w-full border p-2 rounded" /></div>
+                      <button onClick={() => { props.addAdmin({ id: 'admin_' + Date.now(), username: newAdmin.username, password: newAdmin.password, role: 'editor' }); alert('Admin created'); setNewAdmin({username:'',password:'',role:'editor'}); }} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold">Create</button>
+                   </div>
+              ) : <div className="p-4 bg-yellow-50 text-yellow-800">Editor access only.</div>}
+               <div className="grid gap-3 max-w-2xl">{props.admins.map(a => <div key={a.id} className="bg-white p-4 rounded border flex justify-between"><span className="font-bold">{a.username}</span><span className="text-xs uppercase">{a.role}</span></div>)}</div>
            </div>
         )}
       </main>

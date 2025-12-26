@@ -114,8 +114,8 @@ const Layout: React.FC<Props> = ({ children, lang, setLang, telegramLink, theme 
             </Link>
           </div>
 
-          <Link to="/tasks" className={`flex flex-col items-center space-y-1 w-14 ${isActive('/tasks') ? 'text-yellow-500' : iconInactive}`}>
-             <ClipboardList size={20} strokeWidth={isActive('/tasks') ? 2.5 : 2} />
+          <Link to="/my-tasks" className={`flex flex-col items-center space-y-1 w-14 ${isActive('/my-tasks') ? 'text-yellow-500' : iconInactive}`}>
+             <ClipboardList size={20} strokeWidth={isActive('/my-tasks') ? 2.5 : 2} />
             <span className="text-[10px] font-medium">{t.tasks}</span>
           </Link>
 

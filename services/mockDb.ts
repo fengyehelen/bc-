@@ -47,7 +47,7 @@ const DEFAULT_CONFIG: SystemConfig = {
   hypeLevel: 5, 
   helpContent: 'Welcome to the help center.',
   aboutContent: 'About us content goes here.',
-  vipConfig: generateDefaultVipConfig()
+  vipConfig: { en: generateDefaultVipConfig() }
 };
 
 // Ensure mock platforms have 'likes' property if old data is loaded

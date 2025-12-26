@@ -6,7 +6,8 @@ import {
   ArrowLeft, ChevronRight, Copy, Upload, Clock, XCircle, User as UserIcon, 
   List, CheckCircle, Smartphone, Lock, MessageSquare, LogOut, QrCode, 
   CreditCard, Eye, EyeOff, ArrowDown, Sparkles, Plus, ShieldCheck, Wallet, History,
-  Share2, Facebook, Twitter, Link as LinkIcon, Send, MessageCircle, Dices, Palette, Mail, Volume2, Heart, HelpCircle, Info, Filter, X, Crown
+  Share2, Facebook, Twitter, Link as LinkIcon, Send, MessageCircle, Dices, Palette, Mail, Volume2, Heart, HelpCircle, Info, Filter, X, Crown,
+  Image as ImageIcon
 } from 'lucide-react';
 import Layout from './Layout';
 
@@ -244,6 +245,8 @@ export const HomeView: React.FC<{
       return data;
   }, [platforms, lang, sort]);
 
+  const activeActivities = activities.filter(a => a.active && (a.targetCountries || []).includes(lang));
+
   return (
     <div className="min-h-screen relative">
       
@@ -272,13 +275,17 @@ export const HomeView: React.FC<{
       )}
 
       <div className="pb-12">
-        {/* Banner Section */}
+        {/* Banner Section - Carousel */}
         <div className="p-4 pb-0">
-            {activities.filter(a => a.active && (a.targetCountries || []).includes(lang)).length > 0 && (
-            <div className="relative w-full h-40 rounded-2xl overflow-hidden shadow-lg cursor-pointer" onClick={() => navigate(`/activity/${activities[0].id}`)}>
-                <img src={activities[0].imageUrl} className="w-full h-full object-cover" />
-                <div className="absolute bottom-0 inset-x-0 bg-black/60 p-2 text-white font-bold">{activities[0].title}</div>
-            </div>
+            {activeActivities.length > 0 && (
+                <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 no-scrollbar">
+                    {activeActivities.map(act => (
+                        <div key={act.id} className="relative w-full flex-shrink-0 h-40 rounded-2xl overflow-hidden shadow-lg cursor-pointer snap-center" onClick={() => navigate(`/activity/${act.id}`)}>
+                            <img src={act.imageUrl} className="w-full h-full object-cover" />
+                            <div className="absolute bottom-0 inset-x-0 bg-black/60 p-2 text-white font-bold" style={{color: act.titleColor}}>{act.title}</div>
+                        </div>
+                    ))}
+                </div>
             )}
         </div>
 
@@ -310,7 +317,7 @@ export const HomeView: React.FC<{
                 const isLiked = (user.likedTaskIds || []).includes(p.id);
 
                 return (
-                <div key={p.id} className="rounded-xl overflow-hidden shadow-lg relative group h-36 transform transition-all hover:scale-[1.01]">
+                <div key={p.id} onClick={() => navigate(`/task-detail/${p.id}`)} className="rounded-xl overflow-hidden shadow-lg relative group h-36 transform transition-all hover:scale-[1.01] cursor-pointer">
                     <img src={p.logoUrl} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                     <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 to-transparent"></div>
 
@@ -321,8 +328,8 @@ export const HomeView: React.FC<{
                     
                     <div>
                         <div className="mb-1">
-                            <h3 className="font-bold text-white text-lg leading-tight line-clamp-1 drop-shadow-md">{p.name}</h3>
-                            <p className="text-xs text-slate-300 line-clamp-1">{p.description}</p>
+                            <h3 className="font-bold text-white text-lg leading-tight line-clamp-1 drop-shadow-md" style={{color: p.nameColor}}>{p.name}</h3>
+                            <p className="text-xs text-slate-300 line-clamp-1" style={{color: p.descColor}}>{p.description}</p>
                         </div>
 
                         <div className="mb-2">
@@ -349,7 +356,7 @@ export const HomeView: React.FC<{
                                     Sold Out
                                 </button>
                             ) : (
-                                <button onClick={() => onQuickJoin(p)} className="bg-gradient-to-r from-red-500 to-rose-600 text-white text-xs font-bold px-5 py-2 rounded-full shadow-lg active:scale-95 transition-transform">
+                                <button onClick={(e) => { e.stopPropagation(); onQuickJoin(p); }} className="bg-gradient-to-r from-red-500 to-rose-600 text-white text-xs font-bold px-5 py-2 rounded-full shadow-lg active:scale-95 transition-transform">
                                     {t.startTask}
                                 </button>
                             )}
@@ -363,6 +370,126 @@ export const HomeView: React.FC<{
         </div>
       </div>
     </div>
+  );
+};
+
+export const TasksView: React.FC<{ 
+    platforms: Platform[]; 
+    t: any; 
+    setSort: (s: SortOption) => void; 
+    sort: SortOption; 
+    lang: Language; 
+    user: User;
+    config: SystemConfig;
+    onLikeTask: (id: string) => void;
+    onQuickJoin: (p: Platform) => void; 
+}> = ({ platforms, t, setSort, sort, lang, user, config, onLikeTask, onQuickJoin }) => {
+  const navigate = useNavigate();
+  const isGold = user.theme === 'gold';
+  
+  const filteredPlatforms = React.useMemo(() => {
+      let data = platforms.filter(p => p.status === 'online' && (p.targetCountries || []).includes(lang));
+      
+      data.sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
+
+      if (sort === SortOption.NEWEST) {
+          data.sort((a, b) => (b.isPinned === a.isPinned) ? new Date(b.launchDate).getTime() - new Date(a.launchDate).getTime() : 0);
+      } else if (sort === SortOption.HIGHEST_REWARD) {
+          data.sort((a, b) => (b.isPinned === a.isPinned) ? b.rewardAmount - a.rewardAmount : 0);
+      } else if (sort === SortOption.POPULAR) {
+          data.sort((a, b) => (b.isPinned === a.isPinned) ? (b.totalQty - b.remainingQty) - (a.totalQty - a.remainingQty) : 0);
+      }
+      return data;
+  }, [platforms, lang, sort]);
+
+  return (
+      <div className={`min-h-screen pb-20 ${isGold ? 'bg-slate-50' : 'bg-slate-900'}`}>
+         {/* Header */}
+         <div className={`sticky top-0 backdrop-blur z-20 border-b p-4 flex items-center space-x-3 ${isGold ? 'bg-slate-50/95 border-slate-200' : 'bg-slate-900/95 border-slate-800'}`}>
+            <h1 className={`font-bold text-lg flex-1 ${isGold ? 'text-slate-800' : 'text-white'}`}>{t.tasks}</h1>
+         </div>
+         
+         {/* Marquee */}
+         <div className="mt-0">
+            <WinningMarquee type="task" lang={lang} hypeLevel={config.hypeLevel || 5} />
+         </div>
+
+         {/* Filter Bar & List */}
+         <div className="px-4 py-4 space-y-4">
+             <div className="flex items-center justify-between">
+                <span className={`text-xs font-medium ${isGold ? 'text-slate-600' : 'text-slate-400'}`}>{t.sort}:</span>
+                <div className="flex space-x-2">
+                    {[ { id: SortOption.NEWEST, label: t.sortNew }, { id: SortOption.HIGHEST_REWARD, label: t.sortReward }, { id: SortOption.POPULAR, label: 'Popular' } ].map((opt) => (
+                    <button key={opt.id} onClick={() => setSort(opt.id)} className={`px-3 py-1 rounded-full text-[10px] border transition-colors ${
+                        sort === opt.id 
+                        ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-600' 
+                        : isGold ? 'bg-white border-slate-200 text-slate-500' : 'bg-slate-800 border-slate-700 text-slate-400'
+                    }`}>{opt.label}</button>
+                    ))}
+                </div>
+             </div>
+             
+             <div className="space-y-4">
+                {filteredPlatforms.map((p) => {
+                    const claimed = p.totalQty - p.remainingQty;
+                    const percent = Math.min(100, Math.round((claimed / p.totalQty) * 100));
+                    const isSoldOut = p.remainingQty <= 0;
+                    const totalLikes = 200 + (p.likes || 0);
+                    const isLiked = (user.likedTaskIds || []).includes(p.id);
+
+                    return (
+                    <div key={p.id} onClick={() => navigate(`/task-detail/${p.id}`)} className="rounded-xl overflow-hidden shadow-lg relative group h-36 transform transition-all hover:scale-[1.01] cursor-pointer">
+                        <img src={p.logoUrl} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 to-transparent"></div>
+
+                        <div className="absolute inset-0 p-4 flex flex-col justify-between relative z-10">
+                        <div className="flex justify-between items-start">
+                            {p.isPinned && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm">TOP</span>}
+                        </div>
+                        
+                        <div>
+                            <div className="mb-1">
+                                <h3 className="font-bold text-white text-lg leading-tight line-clamp-1 drop-shadow-md" style={{color: p.nameColor}}>{p.name}</h3>
+                                <p className="text-xs text-slate-300 line-clamp-1" style={{color: p.descColor}}>{p.description}</p>
+                            </div>
+
+                            <div className="mb-2">
+                                <div className="flex justify-between text-[10px] text-slate-300 mb-1">
+                                    <span>Claimed: {claimed}/{p.totalQty}</span>
+                                    <span>{percent}%</span>
+                                </div>
+                                <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
+                                    <div className="h-full bg-yellow-500 rounded-full" style={{ width: `${percent}%` }}></div>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-between items-end">
+                                <div className="flex items-center gap-2">
+                                    <span className="bg-yellow-500 text-slate-900 font-bold text-lg px-2 rounded shadow-lg shadow-yellow-500/20">{formatMoney(p.rewardAmount, user.currency)}</span>
+                                    <button onClick={(e) => { e.stopPropagation(); onLikeTask(p.id); }} className={`flex items-center gap-1 transition-colors ${isLiked ? 'text-red-500' : 'text-slate-300 hover:text-red-400'}`} disabled={isLiked}>
+                                        <Heart size={16} className={isLiked ? "fill-red-500" : ""} />
+                                        <span className="text-xs font-bold text-white shadow-black drop-shadow">{totalLikes}</span>
+                                    </button>
+                                </div>
+
+                                {isSoldOut ? (
+                                    <button disabled className="bg-slate-600 text-slate-300 text-xs font-bold px-5 py-2 rounded-full cursor-not-allowed">
+                                        Sold Out
+                                    </button>
+                                ) : (
+                                    <button onClick={(e) => { e.stopPropagation(); onQuickJoin(p); }} className="bg-gradient-to-r from-red-500 to-rose-600 text-white text-xs font-bold px-5 py-2 rounded-full shadow-lg active:scale-95 transition-transform">
+                                        {t.startTask}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                    );
+                })}
+             </div>
+         </div>
+      </div>
   );
 };
 
@@ -450,7 +577,232 @@ export const ActivityDetailView: React.FC<{ activities: Activity[]; t: any }> = 
   );
 };
 
-export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lang: Language; onBindCard: (b: string, n: string, no: string, type: 'bank'|'ewallet'|'crypto') => void; onWithdraw: (amount: number, accId: string) => void; toggleTheme: () => void; minWithdraw: number; clearUnreadTx: () => void; }> = ({ user, t, logout, lang, onBindCard, onWithdraw, toggleTheme, minWithdraw, clearUnreadTx }) => {
+export const MyTasksView: React.FC<{ user: User; onSubmitProof: (taskId: string, img: string) => void; t: any; lang: Language }> = ({ user, onSubmitProof, t, lang }) => {
+  const [activeTab, setActiveTab] = useState<'ongoing' | 'reviewing' | 'completed'>('ongoing');
+  const myTasks = user.myTasks || [];
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [currentUploadTaskId, setCurrentUploadTaskId] = useState<string | null>(null);
+  const isGold = user.theme === 'gold';
+  const navigate = useNavigate();
+  
+  const tasks = myTasks.filter(task => {
+    if (!task || !task.status) return false;
+    if (activeTab === 'ongoing') return task.status === 'ongoing';
+    if (activeTab === 'reviewing') return task.status === 'reviewing';
+    // 'Completed' tab shows both completed and rejected as history
+    return task.status === 'completed' || task.status === 'rejected';
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file && currentUploadTaskId) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              onSubmitProof(currentUploadTaskId, reader.result as string);
+              setCurrentUploadTaskId(null);
+          };
+          reader.readAsDataURL(file);
+      }
+  };
+
+  const triggerUpload = (taskId: string) => {
+      setCurrentUploadTaskId(taskId);
+      fileInputRef.current?.click();
+  };
+
+  return (
+    <div className={`p-4 min-h-screen ${isGold ? 'bg-slate-50' : 'bg-slate-900'}`}>
+      <div className={`sticky top-0 backdrop-blur z-20 border-b p-4 flex items-center space-x-3 mb-4 ${isGold ? 'bg-slate-50/95 border-slate-200' : 'bg-slate-900/95 border-slate-800'}`}>
+          <button onClick={() => navigate(-1)} className={isGold ? 'text-slate-600' : 'text-slate-300'}><ArrowLeft size={24} /></button>
+          <h1 className={`font-bold text-lg flex-1 ${isGold ? 'text-slate-800' : 'text-white'}`}>{t.myTasksTitle}</h1>
+      </div>
+      
+      {/* Hidden File Input */}
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+
+      <div className={`flex space-x-1 p-1 rounded-lg mb-4 ${isGold ? 'bg-slate-200' : 'bg-slate-800'}`}>
+        {['ongoing', 'reviewing', 'completed'].map((tab) => (
+          <button key={tab} onClick={() => setActiveTab(tab as any)} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${activeTab === tab ? (isGold ? 'bg-white text-slate-900 shadow' : 'bg-slate-600 text-white shadow') : (isGold ? 'text-slate-500' : 'text-slate-400')}`}>{t.status[tab]}</button>
+        ))}
+      </div>
+      {tasks.length === 0 ? <div className={`text-center py-20 text-slate-500 rounded-xl border border-dashed ${isGold ? 'bg-slate-100 border-slate-300' : 'bg-slate-800/50 border-slate-700'}`}>{t.noTasks}</div> :
+        <div className="space-y-4">
+           {tasks.map(task => (
+             <div key={task.id} onClick={() => navigate(`/task-detail/${task.platformId}`)} className={`rounded-xl p-4 border shadow-md ${isGold ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-700'} cursor-pointer active:scale-98 transition-transform`}>
+               <div className="flex space-x-3 mb-3">
+                 <img src={task.logoUrl || 'https://via.placeholder.com/50'} className="w-12 h-12 rounded-lg bg-slate-700 object-cover" />
+                 <div className="flex-1">
+                     <h3 className={`font-bold ${isGold ? 'text-slate-800' : 'text-white'}`}>{task.platformName}</h3>
+                     <span className="text-yellow-500 text-sm font-bold block">{t.reward}: {formatMoney(task.rewardAmount, user.currency)}</span>
+                     {task.status === 'ongoing' && <span className="text-[10px] text-slate-400">Started: {new Date(task.startTime).toLocaleDateString()}</span>}
+                 </div>
+               </div>
+               
+               {task.status === 'ongoing' && (
+                 <div className="mt-2 pt-3 border-t border-slate-200/20">
+                   <button onClick={(e) => { e.stopPropagation(); triggerUpload(task.id); }} className="w-full bg-indigo-600 text-white py-3 rounded-lg text-sm font-bold hover:bg-indigo-500 flex items-center justify-center space-x-2 shadow-lg shadow-indigo-500/20 animate-pulse">
+                     <ImageIcon size={18} /><span>{t.uploadScreenshot}</span>
+                   </button>
+                 </div>
+               )}
+               {task.status === 'reviewing' && <div className="mt-2 pt-2 border-t border-slate-200/20 flex items-center space-x-2 text-orange-400 text-sm font-medium"><Clock size={16} /><span>Wait for admin audit...</span></div>}
+               {task.status === 'completed' && <div className="mt-2 pt-2 border-t border-slate-200/20 flex items-center space-x-2 text-green-500 text-sm font-bold"><CheckCircle size={16} /><span>Reward Received!</span></div>}
+               {task.status === 'rejected' && (
+                   <div className="mt-2 pt-2 border-t border-slate-200/20">
+                       <div className="flex items-center space-x-2 text-red-500 text-sm font-bold mb-1"><XCircle size={16} /><span>Task Rejected</span></div>
+                       {task.rejectReason && <p className="text-xs text-slate-400">Reason: {task.rejectReason}</p>}
+                   </div>
+               )}
+             </div>
+           ))}
+        </div>
+      }
+    </div>
+  );
+};
+
+export const ReferralView: React.FC<{ user: User; users: User[]; t: any; lang: Language; config: SystemConfig }> = ({ user, users, t, lang, config }) => {
+    const referralLink = `https://betbounty.app/reg?c=${user.referralCode}`;
+    const copyToClipboard = () => { navigator.clipboard.writeText(referralLink); alert(t.copied); };
+    const isGold = user.theme === 'gold';
+    const navigate = useNavigate();
+
+    // Calculate Team Stats - Safe access
+    const level1 = users.filter(u => u.referrerId === user.id);
+    const level1Ids = level1.map(u => u.id);
+    const level2 = users.filter(u => u.referrerId && level1Ids.includes(u.referrerId));
+    const level2Ids = level2.map(u => u.id);
+    const level3 = users.filter(u => u.referrerId && level2Ids.includes(u.referrerId));
+
+    const transactions = user.transactions || [];
+    const todayComms = transactions
+        .filter(tx => tx.type === 'referral_bonus' && new Date(tx.date).toDateString() === new Date().toDateString())
+        .reduce((sum, tx) => sum + tx.amount, 0);
+
+    const share = (platform: string) => {
+        const text = `Join BetBounty and earn money! Use my code: ${user.referralCode}`;
+        let url = '';
+        if(platform === 'fb') url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`;
+        if(platform === 'tw') url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(referralLink)}`;
+        if(platform === 'wa') url = `https://wa.me/?text=${encodeURIComponent(text + " " + referralLink)}`;
+        if(platform === 'tg') url = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+    };
+
+    return (
+     <div className={`min-h-screen ${isGold ? 'bg-slate-50' : 'bg-slate-900'}`}>
+        <div className={`sticky top-0 backdrop-blur z-20 border-b p-4 flex items-center space-x-3 mb-4 ${isGold ? 'bg-slate-50/95 border-slate-200' : 'bg-slate-900/95 border-slate-800'}`}>
+            <button onClick={() => navigate(-1)} className={isGold ? 'text-slate-600' : 'text-slate-300'}><ArrowLeft size={24} /></button>
+            <h1 className={`font-bold text-lg flex-1 ${isGold ? 'text-slate-800' : 'text-white'}`}>{t.referral}</h1>
+        </div>
+        
+        <div className="p-4 pt-0 pb-24 space-y-6">
+            {/* Marquee at Top */}
+            <div className="-mx-4 mb-4">
+                <WinningMarquee type="invite" lang={lang} hypeLevel={config.hypeLevel || 5} />
+            </div>
+
+            <div className={`rounded-2xl p-6 shadow-2xl text-center border ${isGold ? 'bg-gradient-to-br from-yellow-400 to-amber-500 border-amber-300' : 'bg-gradient-to-br from-indigo-900 to-slate-800 border-indigo-500/30'}`}>
+            <h2 className="text-2xl font-bold text-white mb-2">{t.referralRules}</h2>
+            <p className="text-white/80 text-sm mb-6">{t.referralDesc}</p>
+            
+            <div className="bg-black/20 p-4 rounded-xl mb-4 backdrop-blur-sm">
+                <div className="grid grid-cols-2 gap-4 text-left">
+                    <div><p className="text-xs text-white/70">{t.todayStats}</p><p className="text-xl font-bold text-yellow-300">{formatMoney(todayComms, user.currency)}</p></div>
+                    <div><p className="text-xs text-white/70">{t.totalInvited}</p><p className="text-xl font-bold text-white">{level1.length + level2.length + level3.length}</p></div>
+                </div>
+            </div>
+            <div className="flex justify-between text-xs text-white/70 px-2">
+                <div><span className="block font-bold text-white text-lg">{level1.length}</span>{t.level1}</div>
+                <div><span className="block font-bold text-white text-lg">{level2.length}</span>{t.level2}</div>
+                <div><span className="block font-bold text-white text-lg">{level3.length}</span>{t.level3}</div>
+            </div>
+            </div>
+
+            {/* Share Section with QR Code (Enhanced Layout) */}
+            <div className={`rounded-xl p-4 border ${isGold ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-800 border-slate-700'}`}>
+                <h3 className={`font-bold mb-3 flex items-center gap-2 ${isGold ? 'text-slate-800' : 'text-white'}`}><Share2 size={16}/> {t.shareVia}</h3>
+                
+                <div className="flex gap-4">
+                    {/* Left: Buttons */}
+                    <div className="flex-1 flex flex-col justify-center gap-3">
+                        <div className="flex justify-between gap-2">
+                            <button onClick={() => share('fb')} className="flex-1 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white"><Facebook size={20}/></button>
+                            <button onClick={() => share('tw')} className="flex-1 h-10 rounded-lg bg-sky-400 flex items-center justify-center text-white"><Twitter size={20}/></button>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                            <button onClick={() => share('wa')} className="flex-1 h-10 rounded-lg bg-green-500 flex items-center justify-center text-white"><MessageCircle size={20}/></button>
+                            <button onClick={() => share('tg')} className="flex-1 h-10 rounded-lg bg-blue-400 flex items-center justify-center text-white"><Send size={20}/></button>
+                        </div>
+                    </div>
+
+                    {/* Right: QR Code */}
+                    <div className="bg-white p-2 rounded-xl flex-shrink-0 shadow-md">
+                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${referralLink}`} className="w-20 h-20" />
+                    </div>
+                </div>
+
+                <div className={`mt-4 rounded-lg p-3 flex items-center justify-between border ${isGold ? 'bg-slate-100 border-slate-200' : 'bg-slate-900 border-slate-600'}`}>
+                    <div className="truncate text-xs text-slate-400 mr-2 flex-1">{referralLink}</div>
+                    <button onClick={copyToClipboard} className="text-white bg-slate-500 hover:bg-slate-600 p-2 rounded-lg flex-shrink-0"><LinkIcon size={16} /></button>
+                </div>
+            </div>
+
+            {/* Tree Explanation */}
+            <div className={`rounded-xl p-6 border ${isGold ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-800 border-slate-700'}`}>
+                <h3 className={`font-bold mb-4 ${isGold ? 'text-slate-800' : 'text-white'}`}>{t.howItWorks}</h3>
+                <div className="relative pl-4 space-y-6">
+                    <div className="absolute left-[19px] top-2 bottom-6 w-0.5 bg-indigo-500/30"></div>
+                    
+                    {/* Level 1 */}
+                    <div className="relative">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-yellow-500 text-slate-900 font-bold flex items-center justify-center z-10 border-4 border-white/10 shadow">You</div>
+                            <div className="text-sm">
+                                <p className={`font-bold ${isGold ? 'text-slate-700' : 'text-white'}`}>{t.refStoryA}</p>
+                                <p className="text-yellow-500 text-xs font-bold">{t.refStoryEarn} 20%</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Level 2 */}
+                    <div className="relative ml-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center z-10 border-2 border-white/10 shadow">A</div>
+                            <div className="text-sm">
+                                <p className={`font-bold ${isGold ? 'text-slate-700' : 'text-white'}`}>{t.refStoryB}</p>
+                                <p className="text-yellow-500 text-xs font-bold">{t.refStoryEarn} 10%</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Level 3 */}
+                    <div className="relative ml-8">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-slate-500 text-white font-bold flex items-center justify-center z-10 border-2 border-white/10 shadow">B</div>
+                            <div className="text-sm">
+                                <p className={`font-bold ${isGold ? 'text-slate-700' : 'text-white'}`}>{t.refStoryC}</p>
+                                <p className="text-yellow-500 text-xs font-bold">{t.refStoryEarn} 5%</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className={`mt-6 p-4 rounded-lg text-xs ${isGold ? 'bg-slate-100 text-slate-500' : 'bg-slate-900/50 text-slate-400'}`}>
+                    <p className={`font-bold mb-1 ${isGold ? 'text-slate-700' : 'text-slate-300'}`}>{t.refExample}:</p>
+                    <ul className="space-y-1">
+                        <li>• Level 1 User (A): You get <span className="text-green-500 font-bold">$20</span></li>
+                        <li>• Level 2 User (B): You get <span className="text-green-500 font-bold">$10</span></li>
+                        <li>• Level 3 User (C): You get <span className="text-green-500 font-bold">$5</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+     </div>
+    );
+};
+
+export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lang: Language; onBindCard: (b: string, n: string, no: string, type: 'bank'|'ewallet'|'crypto') => void; onWithdraw: (amount: number, accId: string) => void; toggleTheme: () => void; minWithdraw: number; clearUnreadTx: () => void; config: SystemConfig; }> = ({ user, t, logout, lang, onBindCard, onWithdraw, toggleTheme, minWithdraw, clearUnreadTx, config }) => {
   const [modal, setModal] = useState<'bind' | 'withdraw' | 'transactions' | null>(null);
   const [bindData, setBindData] = useState({ bank: '', name: '', no: '', type: 'bank' as 'bank'|'ewallet'|'crypto' });
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -483,6 +835,10 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
           setSelectedAccId(accounts[0].id);
       }
   }, [hasAccounts, accounts, selectedAccId]);
+
+  // Determine VIP Config based on country (using language as proxy or passed config)
+  // Fallback to 'en' or first available if current lang is missing
+  const vipTiers = config.vipConfig?.[lang] || config.vipConfig?.['en'] || [];
 
   return (
     <div className={`min-h-screen pb-20 ${isGold ? 'bg-slate-50' : 'bg-slate-900'}`}>
@@ -574,22 +930,42 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
            </div>
         </div>
         
-        {/* VIP CARD */}
-        <div className="bg-gradient-to-r from-yellow-200 via-amber-200 to-yellow-400 rounded-xl p-1 mb-4 shadow-lg">
-            <div className="bg-slate-900/90 rounded-lg p-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center shadow">
-                        <Crown size={20} className="text-white fill-white" />
-                    </div>
-                    <div>
-                        <h3 className="text-yellow-400 font-bold text-lg leading-none">VIP {user.vipLevel}</h3>
-                        <p className="text-slate-400 text-[10px]">Level 20 Max</p>
-                    </div>
-                </div>
-                <div className="text-right">
-                    <div className="text-xs text-slate-400 mb-1">Total Earned</div>
-                    <div className="text-yellow-400 font-bold font-mono">{formatMoney(user.totalEarnings, user.currency)}</div>
-                </div>
+        {/* VIP CARD SWIPER */}
+        <div className="mb-4">
+            <div className="flex overflow-x-auto snap-x snap-mandatory gap-3 no-scrollbar pb-2">
+                {vipTiers.map((tier) => {
+                    const isLocked = tier.level > user.vipLevel;
+                    const isCurrent = tier.level === user.vipLevel;
+                    
+                    return (
+                        <div key={tier.level} className={`relative flex-shrink-0 w-64 h-32 rounded-xl p-4 snap-center overflow-hidden border ${isCurrent ? 'border-yellow-400 shadow-yellow-500/20 shadow-lg' : 'border-white/10'} bg-gradient-to-br from-slate-800 to-slate-900`}>
+                            {isLocked && (
+                                <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center flex-col">
+                                    <Lock size={24} className="text-white/50 mb-1"/>
+                                    <span className="text-white/50 text-xs font-bold uppercase">Locked</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between items-start mb-2">
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isCurrent ? 'bg-yellow-500 text-slate-900' : 'bg-slate-700 text-slate-400'}`}>
+                                        V{tier.level}
+                                    </div>
+                                    <span className={`text-sm font-bold ${isCurrent ? 'text-yellow-400' : 'text-slate-300'}`}>{isCurrent ? 'Current Level' : `Level ${tier.level}`}</span>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-400">Total Earn Required:</span>
+                                    <span className="text-white font-mono">{formatMoney(tier.threshold, user.currency)}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-400">Upgrade Bonus:</span>
+                                    <span className="text-yellow-400 font-bold font-mono">+{formatMoney(tier.reward, user.currency)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
         </div>
 
@@ -606,22 +982,6 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
       </div>
 
       <div className="p-4 space-y-4">
-         {/* Menu Grid */}
-         <div className="grid grid-cols-4 gap-4 mb-2">
-             <button onClick={() => navigate('/transactions')} className="flex flex-col items-center gap-1">
-                 <div className={`p-3 rounded-full ${isGold ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-800 text-indigo-400'}`}><History size={20}/></div>
-                 <span className={`text-[10px] ${isGold ? 'text-slate-600' : 'text-slate-400'}`}>{t.transactions}</span>
-             </button>
-             <button onClick={() => navigate('/help')} className="flex flex-col items-center gap-1">
-                 <div className={`p-3 rounded-full ${isGold ? 'bg-green-100 text-green-600' : 'bg-slate-800 text-green-400'}`}><HelpCircle size={20}/></div>
-                 <span className={`text-[10px] ${isGold ? 'text-slate-600' : 'text-slate-400'}`}>Help</span>
-             </button>
-             <button onClick={() => navigate('/about')} className="flex flex-col items-center gap-1">
-                 <div className={`p-3 rounded-full ${isGold ? 'bg-orange-100 text-orange-600' : 'bg-slate-800 text-orange-400'}`}><Info size={20}/></div>
-                 <span className={`text-[10px] ${isGold ? 'text-slate-600' : 'text-slate-400'}`}>About</span>
-             </button>
-         </div>
-
          {/* Bank Card Display - Horizontal Scroll */}
          <h3 className="text-sm font-bold text-slate-400 uppercase">My Accounts</h3>
             <div className="flex space-x-4 overflow-x-auto pb-4 no-scrollbar">
@@ -653,214 +1013,32 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
                 )}
             </div>
          </div>
+
+         {/* New Menu List Below Latest Record */}
+         <div className={`rounded-xl border overflow-hidden ${isGold ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-700'}`}>
+             <button onClick={() => navigate('/transactions')} className={`w-full p-4 flex items-center justify-between border-b ${isGold ? 'border-slate-100 hover:bg-slate-50' : 'border-slate-700 hover:bg-slate-700'} transition-colors`}>
+                 <div className="flex items-center gap-3">
+                     <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600"><History size={16}/></div>
+                     <span className={`text-sm font-medium ${isGold ? 'text-slate-700' : 'text-slate-200'}`}>{t.transactions}</span>
+                 </div>
+                 <ChevronRight size={16} className="text-slate-400"/>
+             </button>
+             <button onClick={() => navigate('/help')} className={`w-full p-4 flex items-center justify-between border-b ${isGold ? 'border-slate-100 hover:bg-slate-50' : 'border-slate-700 hover:bg-slate-700'} transition-colors`}>
+                 <div className="flex items-center gap-3">
+                     <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600"><HelpCircle size={16}/></div>
+                     <span className={`text-sm font-medium ${isGold ? 'text-slate-700' : 'text-slate-200'}`}>Help Center</span>
+                 </div>
+                 <ChevronRight size={16} className="text-slate-400"/>
+             </button>
+             <button onClick={() => navigate('/about')} className={`w-full p-4 flex items-center justify-between ${isGold ? 'hover:bg-slate-50' : 'hover:bg-slate-700'} transition-colors`}>
+                 <div className="flex items-center gap-3">
+                     <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600"><Info size={16}/></div>
+                     <span className={`text-sm font-medium ${isGold ? 'text-slate-700' : 'text-slate-200'}`}>About Us</span>
+                 </div>
+                 <ChevronRight size={16} className="text-slate-400"/>
+             </button>
+         </div>
       </div>
   </div>
   );
-};
-
-export const MyTasksView: React.FC<{ user: User; onSubmitProof: (taskId: string, img: string) => void; t: any; lang: Language }> = ({ user, onSubmitProof, t, lang }) => {
-  const [activeTab, setActiveTab] = useState<'ongoing' | 'reviewing' | 'completed'>('ongoing');
-  const myTasks = user.myTasks || [];
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [currentUploadTaskId, setCurrentUploadTaskId] = useState<string | null>(null);
-  const isGold = user.theme === 'gold';
-  const navigate = useNavigate();
-  
-  const tasks = myTasks.filter(task => {
-    if (!task || !task.status) return false;
-    if (activeTab === 'ongoing') return task.status === 'ongoing';
-    if (activeTab === 'reviewing') return task.status === 'reviewing';
-    return task.status === 'completed' || task.status === 'rejected';
-  });
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file && currentUploadTaskId) {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-              onSubmitProof(currentUploadTaskId, reader.result as string);
-              setCurrentUploadTaskId(null);
-          };
-          reader.readAsDataURL(file);
-      }
-  };
-
-  const triggerUpload = (taskId: string) => {
-      setCurrentUploadTaskId(taskId);
-      fileInputRef.current?.click();
-  };
-
-  return (
-    <div className={`p-4 min-h-screen ${isGold ? 'bg-slate-50' : 'bg-slate-900'}`}>
-      <h2 className={`text-xl font-bold mb-4 ${isGold ? 'text-slate-800' : 'text-white'}`}>{t.myTasksTitle}</h2>
-      
-      {/* Hidden File Input */}
-      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-
-      <div className={`flex space-x-1 p-1 rounded-lg mb-4 ${isGold ? 'bg-slate-200' : 'bg-slate-800'}`}>
-        {['ongoing', 'reviewing', 'completed'].map((tab) => (
-          <button key={tab} onClick={() => setActiveTab(tab as any)} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${activeTab === tab ? (isGold ? 'bg-white text-slate-900 shadow' : 'bg-slate-600 text-white shadow') : (isGold ? 'text-slate-500' : 'text-slate-400')}`}>{t.status[tab]}</button>
-        ))}
-      </div>
-      {tasks.length === 0 ? <div className={`text-center py-20 text-slate-500 rounded-xl border border-dashed ${isGold ? 'bg-slate-100 border-slate-300' : 'bg-slate-800/50 border-slate-700'}`}>{t.noTasks}</div> :
-        <div className="space-y-4">
-           {tasks.map(task => (
-             <div key={task.id} onClick={() => navigate(`/task-detail/${task.platformId}`)} className={`rounded-xl p-4 border shadow-md ${isGold ? 'bg-white border-slate-200' : 'bg-slate-800 border-slate-700'} cursor-pointer active:scale-98 transition-transform`}>
-               <div className="flex space-x-3 mb-3">
-                 <img src={task.logoUrl || 'https://via.placeholder.com/50'} className="w-12 h-12 rounded-lg bg-slate-700 object-cover" />
-                 <div><h3 className={`font-bold ${isGold ? 'text-slate-800' : 'text-white'}`}>{task.platformName}</h3><span className="text-yellow-500 text-sm font-bold">{t.reward}: {formatMoney(task.rewardAmount, user.currency)}</span></div>
-               </div>
-               {task.status === 'ongoing' && (
-                 <div className="mt-2 pt-3 border-t border-slate-200/20">
-                   <p className="text-slate-400 text-xs mb-3">Tap to upload screenshot proof.</p>
-                   <button onClick={(e) => { e.stopPropagation(); triggerUpload(task.id); }} className="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-indigo-500 flex items-center justify-center space-x-2">
-                     <Upload size={14} /><span>{t.uploadScreenshot}</span>
-                   </button>
-                 </div>
-               )}
-               {task.status === 'reviewing' && <div className="mt-2 pt-2 border-t border-slate-200/20 flex items-center space-x-2 text-orange-400 text-sm font-medium"><Clock size={16} /><span>Wait for admin audit...</span></div>}
-               {task.status === 'completed' && <div className="mt-2 pt-2 border-t border-slate-200/20 flex items-center space-x-2 text-green-500 text-sm font-bold"><CheckCircle size={16} /><span>Reward Received!</span></div>}
-               {task.status === 'rejected' && <div className="mt-2 pt-2 border-t border-slate-200/20 flex items-center space-x-2 text-red-500 text-sm font-bold"><XCircle size={16} /><span>Rejected</span></div>}
-             </div>
-           ))}
-        </div>
-      }
-    </div>
-  );
-};
-
-export const ReferralView: React.FC<{ user: User; users: User[]; t: any; lang: Language; config: SystemConfig }> = ({ user, users, t, lang, config }) => {
-    const referralLink = `https://betbounty.app/reg?c=${user.referralCode}`;
-    const copyToClipboard = () => { navigator.clipboard.writeText(referralLink); alert(t.copied); };
-    const isGold = user.theme === 'gold';
-    
-    // Calculate Team Stats - Safe access
-    const level1 = users.filter(u => u.referrerId === user.id);
-    const level1Ids = level1.map(u => u.id);
-    const level2 = users.filter(u => u.referrerId && level1Ids.includes(u.referrerId));
-    const level2Ids = level2.map(u => u.id);
-    const level3 = users.filter(u => u.referrerId && level2Ids.includes(u.referrerId));
-
-    const transactions = user.transactions || [];
-    const todayComms = transactions
-        .filter(tx => tx.type === 'referral_bonus' && new Date(tx.date).toDateString() === new Date().toDateString())
-        .reduce((sum, tx) => sum + tx.amount, 0);
-
-    const share = (platform: string) => {
-        const text = `Join BetBounty and earn money! Use my code: ${user.referralCode}`;
-        let url = '';
-        if(platform === 'fb') url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`;
-        if(platform === 'tw') url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(referralLink)}`;
-        if(platform === 'wa') url = `https://wa.me/?text=${encodeURIComponent(text + " " + referralLink)}`;
-        if(platform === 'tg') url = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(text)}`;
-        window.open(url, '_blank');
-    };
-
-    return (
-     <div className={`min-h-screen ${isGold ? 'bg-slate-50' : 'bg-slate-900'}`}>
-        
-        <div className="p-4 pt-4 pb-24 space-y-6">
-            <div className={`rounded-2xl p-6 shadow-2xl text-center border ${isGold ? 'bg-gradient-to-br from-yellow-400 to-amber-500 border-amber-300' : 'bg-gradient-to-br from-indigo-900 to-slate-800 border-indigo-500/30'}`}>
-            <h2 className="text-2xl font-bold text-white mb-2">{t.referralRules}</h2>
-            <p className="text-white/80 text-sm mb-6">{t.referralDesc}</p>
-            
-            <div className="bg-black/20 p-4 rounded-xl mb-4 backdrop-blur-sm">
-                <div className="grid grid-cols-2 gap-4 text-left">
-                    <div><p className="text-xs text-white/70">{t.todayStats}</p><p className="text-xl font-bold text-yellow-300">{formatMoney(todayComms, user.currency)}</p></div>
-                    <div><p className="text-xs text-white/70">{t.totalInvited}</p><p className="text-xl font-bold text-white">{level1.length + level2.length + level3.length}</p></div>
-                </div>
-            </div>
-            <div className="flex justify-between text-xs text-white/70 px-2">
-                <div><span className="block font-bold text-white text-lg">{level1.length}</span>{t.level1}</div>
-                <div><span className="block font-bold text-white text-lg">{level2.length}</span>{t.level2}</div>
-                <div><span className="block font-bold text-white text-lg">{level3.length}</span>{t.level3}</div>
-            </div>
-            </div>
-
-            {/* Marquee - Between Rules and Share */}
-            <div className="-mx-4">
-                <WinningMarquee type="invite" lang={lang} hypeLevel={config.hypeLevel || 5} />
-            </div>
-
-            {/* Share Section with QR Code (Enhanced Layout) */}
-            <div className={`rounded-xl p-4 border ${isGold ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-800 border-slate-700'}`}>
-                <h3 className={`font-bold mb-3 flex items-center gap-2 ${isGold ? 'text-slate-800' : 'text-white'}`}><Share2 size={16}/> {t.shareVia}</h3>
-                
-                <div className="flex gap-4">
-                    {/* Left: Buttons */}
-                    <div className="flex-1 flex flex-col justify-center gap-3">
-                        <div className="flex justify-between gap-2">
-                            <button onClick={() => share('fb')} className="flex-1 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white"><Facebook size={20}/></button>
-                            <button onClick={() => share('tw')} className="flex-1 h-10 rounded-lg bg-sky-400 flex items-center justify-center text-white"><Twitter size={20}/></button>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                            <button onClick={() => share('wa')} className="flex-1 h-10 rounded-lg bg-green-500 flex items-center justify-center text-white"><MessageCircle size={20}/></button>
-                            <button onClick={() => share('tg')} className="flex-1 h-10 rounded-lg bg-blue-400 flex items-center justify-center text-white"><Send size={20}/></button>
-                        </div>
-                    </div>
-
-                    {/* Right: QR Code */}
-                    <div className="bg-white p-2 rounded-xl flex-shrink-0 shadow-md">
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${referralLink}`} className="w-20 h-20" />
-                    </div>
-                </div>
-
-                <div className={`mt-4 rounded-lg p-3 flex items-center justify-between border ${isGold ? 'bg-slate-100 border-slate-200' : 'bg-slate-900 border-slate-600'}`}>
-                    <div className="truncate text-xs text-slate-400 mr-2 flex-1">{referralLink}</div>
-                    <button onClick={copyToClipboard} className="text-white bg-slate-500 hover:bg-slate-600 p-2 rounded-lg flex-shrink-0"><LinkIcon size={16} /></button>
-                </div>
-            </div>
-
-            {/* Tree Explanation */}
-            <div className={`rounded-xl p-6 border ${isGold ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-800 border-slate-700'}`}>
-                <h3 className={`font-bold mb-4 ${isGold ? 'text-slate-800' : 'text-white'}`}>{t.howItWorks}</h3>
-                <div className="relative pl-4 space-y-6">
-                    <div className="absolute left-[19px] top-2 bottom-6 w-0.5 bg-indigo-500/30"></div>
-                    
-                    {/* Level 1 */}
-                    <div className="relative">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-yellow-500 text-slate-900 font-bold flex items-center justify-center z-10 border-4 border-white/10 shadow">You</div>
-                            <div className="text-sm">
-                                <p className={`font-bold ${isGold ? 'text-slate-700' : 'text-white'}`}>{t.refStoryA}</p>
-                                <p className="text-yellow-500 text-xs font-bold">{t.refStoryEarn} 20%</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Level 2 */}
-                    <div className="relative ml-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center z-10 border-2 border-white/10 shadow">A</div>
-                            <div className="text-sm">
-                                <p className={`font-bold ${isGold ? 'text-slate-700' : 'text-white'}`}>{t.refStoryB}</p>
-                                <p className="text-yellow-500 text-xs font-bold">{t.refStoryEarn} 10%</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Level 3 */}
-                    <div className="relative ml-8">
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-slate-500 text-white font-bold flex items-center justify-center z-10 border-2 border-white/10 shadow">B</div>
-                            <div className="text-sm">
-                                <p className={`font-bold ${isGold ? 'text-slate-700' : 'text-white'}`}>{t.refStoryC}</p>
-                                <p className="text-yellow-500 text-xs font-bold">{t.refStoryEarn} 5%</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className={`mt-6 p-4 rounded-lg text-xs ${isGold ? 'bg-slate-100 text-slate-500' : 'bg-slate-900/50 text-slate-400'}`}>
-                    <p className={`font-bold mb-1 ${isGold ? 'text-slate-700' : 'text-slate-300'}`}>{t.refExample}:</p>
-                    <ul className="space-y-1">
-                        <li>• Level 1 User (A): You get <span className="text-green-500 font-bold">$20</span></li>
-                        <li>• Level 2 User (B): You get <span className="text-green-500 font-bold">$10</span></li>
-                        <li>• Level 3 User (C): You get <span className="text-green-500 font-bold">$5</span></li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-     </div>
-    );
 };

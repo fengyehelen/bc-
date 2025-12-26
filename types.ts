@@ -3,8 +3,10 @@ export type Language = 'en' | 'id' | 'th' | 'vi' | 'ms' | 'tl' | 'zh';
 export interface Platform {
   id: string;
   name: string;
+  nameColor?: string; // New: Custom text color
   logoUrl: string;
   description: string;
+  descColor?: string; // New: Custom text color
   downloadLink: string;
   firstDepositAmount: number;
   rewardAmount: number;
@@ -67,12 +69,12 @@ export interface User {
   balance: number;
   currency: string; 
   totalEarnings: number;
-  vipLevel: number; // New: 1-20
+  vipLevel: number; 
   referralCode: string;
   referrerId?: string; 
   invitedCount: number;
   myTasks: UserTask[];
-  likedTaskIds: string[]; // New: Track liked tasks
+  likedTaskIds: string[]; 
   registrationDate: string;
   bankAccounts: BankAccount[]; 
   role: 'user' | 'admin';
@@ -92,6 +94,7 @@ export interface Admin {
 export interface Activity {
   id: string;
   title: string;
+  titleColor?: string; // New: Custom text color
   imageUrl: string;
   content: string;
   link: string;
@@ -102,8 +105,8 @@ export interface Activity {
 
 export interface VipTier {
     level: number;
-    threshold: number; // Earnings required
-    reward: number; // Upgrade bonus
+    threshold: number; 
+    reward: number; 
 }
 
 export interface SystemConfig {
@@ -113,7 +116,7 @@ export interface SystemConfig {
   hypeLevel: number; 
   helpContent: string; 
   aboutContent: string; 
-  vipConfig: VipTier[]; // New: VIP settings
+  vipConfig: Record<string, VipTier[]>; 
 }
 
 export enum SortOption {
