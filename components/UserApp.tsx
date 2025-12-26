@@ -7,7 +7,7 @@ import {
   List, CheckCircle, Smartphone, Lock, MessageSquare, LogOut, QrCode, 
   CreditCard, Eye, EyeOff, ArrowDown, Sparkles, Plus, ShieldCheck, Wallet, History,
   Share2, Facebook, Twitter, Link as LinkIcon, Send, MessageCircle, Dices, Palette, Mail, Volume2, Heart, HelpCircle, Info, Filter, X, Crown,
-  Image as ImageIcon
+  Image as ImageIcon, ChevronLeft
 } from 'lucide-react';
 import Layout from './Layout';
 
@@ -17,6 +17,76 @@ const formatMoney = (amount: number, currencySymbol: string) => {
 };
 
 // --- REUSABLE COMPONENTS ---
+
+// Banner Carousel with Auto Scroll & Arrows
+const BannerCarousel: React.FC<{ activities: Activity[] }> = ({ activities }) => {
+    const navigate = useNavigate();
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const timeoutRef = useRef<number | null>(null);
+
+    const resetTimeout = () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+
+    useEffect(() => {
+        resetTimeout();
+        if(activities.length > 1) {
+            timeoutRef.current = window.setTimeout(() => {
+                setCurrentIndex((prevIndex) => (prevIndex === activities.length - 1 ? 0 : prevIndex + 1));
+            }, 5000);
+        }
+        return () => resetTimeout();
+    }, [currentIndex, activities.length]);
+
+    const next = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setCurrentIndex(curr => (curr === activities.length - 1 ? 0 : curr + 1));
+    };
+
+    const prev = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setCurrentIndex(curr => (curr === 0 ? activities.length - 1 : curr - 1));
+    };
+
+    if (activities.length === 0) return null;
+
+    return (
+        <div className="relative w-full h-40 rounded-2xl overflow-hidden shadow-lg group">
+            {/* Slides */}
+            <div className="w-full h-full relative" onClick={() => navigate(`/activity/${activities[currentIndex].id}`)}>
+                <img 
+                    src={activities[currentIndex].imageUrl} 
+                    className="w-full h-full object-cover transition-opacity duration-500 ease-in-out cursor-pointer" 
+                    alt={activities[currentIndex].title}
+                />
+                <div className="absolute bottom-0 inset-x-0 bg-black/60 p-2 text-white font-bold transition-opacity duration-300" style={{color: activities[currentIndex].titleColor}}>
+                    {activities[currentIndex].title}
+                </div>
+            </div>
+
+            {/* Arrows */}
+            {activities.length > 1 && (
+                <>
+                    <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-1 rounded-full backdrop-blur-sm z-10 transition-colors">
+                        <ChevronLeft size={24} />
+                    </button>
+                    <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-1 rounded-full backdrop-blur-sm z-10 transition-colors">
+                        <ChevronRight size={24} />
+                    </button>
+                </>
+            )}
+
+            {/* Dots */}
+            {activities.length > 1 && (
+                <div className="absolute top-2 right-2 flex space-x-1 z-10">
+                    {activities.map((_, idx) => (
+                        <div key={idx} className={`w-2 h-2 rounded-full transition-all ${idx === currentIndex ? 'bg-white w-4' : 'bg-white/50'}`}></div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
 
 // Enhanced Vertical Marquee
 const WinningMarquee: React.FC<{ type: 'task' | 'invite'; lang: Language; hypeLevel: number }> = ({ type, lang, hypeLevel }) => {
@@ -225,9 +295,22 @@ export const HomeView: React.FC<{
   const [showPopup, setShowPopup] = useState(false);
   const popupActivity = activities.find(a => a.showPopup && a.active);
 
+  // Activity Popup Logic: Show once per session per activity ID
   useEffect(() => {
-      if (popupActivity) setShowPopup(true);
+      if (popupActivity) {
+          const hasSeen = sessionStorage.getItem(`seen_activity_${popupActivity.id}`);
+          if (!hasSeen) {
+              setShowPopup(true);
+          }
+      }
   }, [popupActivity]);
+
+  const closePopup = () => {
+      if (popupActivity) {
+          sessionStorage.setItem(`seen_activity_${popupActivity.id}`, 'true');
+      }
+      setShowPopup(false);
+  };
   
   const filteredPlatforms = React.useMemo(() => {
       let data = platforms.filter(p => p.status === 'online' && (p.targetCountries || []).includes(lang));
@@ -254,14 +337,14 @@ export const HomeView: React.FC<{
       {showPopup && popupActivity && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 animate-entry">
               <div className="relative w-full max-w-sm">
-                  <button onClick={() => setShowPopup(false)} className="absolute -top-10 right-0 text-white"><XCircle size={32}/></button>
+                  <button onClick={closePopup} className="absolute -top-10 right-0 text-white"><XCircle size={32}/></button>
                   <img 
                     src={popupActivity.imageUrl} 
                     className="w-full rounded-2xl shadow-2xl cursor-pointer" 
-                    onClick={() => { setShowPopup(false); navigate(`/activity/${popupActivity.id}`); }}
+                    onClick={() => { closePopup(); navigate(`/activity/${popupActivity.id}`); }}
                   />
                   <div className="mt-4 text-center">
-                      <button onClick={() => setShowPopup(false)} className="text-slate-400 text-sm border border-slate-600 rounded-full px-4 py-1">Close</button>
+                      <button onClick={closePopup} className="text-slate-400 text-sm border border-slate-600 rounded-full px-4 py-1">Close</button>
                   </div>
               </div>
           </div>
@@ -278,14 +361,7 @@ export const HomeView: React.FC<{
         {/* Banner Section - Carousel */}
         <div className="p-4 pb-0">
             {activeActivities.length > 0 && (
-                <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 no-scrollbar">
-                    {activeActivities.map(act => (
-                        <div key={act.id} className="relative w-full flex-shrink-0 h-40 rounded-2xl overflow-hidden shadow-lg cursor-pointer snap-center" onClick={() => navigate(`/activity/${act.id}`)}>
-                            <img src={act.imageUrl} className="w-full h-full object-cover" />
-                            <div className="absolute bottom-0 inset-x-0 bg-black/60 p-2 text-white font-bold" style={{color: act.titleColor}}>{act.title}</div>
-                        </div>
-                    ))}
-                </div>
+                <BannerCarousel activities={activeActivities} />
             )}
         </div>
 
@@ -351,12 +427,13 @@ export const HomeView: React.FC<{
                                 </button>
                             </div>
 
+                            {/* CHANGED: Card button navigates to details, does NOT open external link */}
                             {isSoldOut ? (
                                 <button disabled className="bg-slate-600 text-slate-300 text-xs font-bold px-5 py-2 rounded-full cursor-not-allowed">
                                     Sold Out
                                 </button>
                             ) : (
-                                <button onClick={(e) => { e.stopPropagation(); onQuickJoin(p); }} className="bg-gradient-to-r from-red-500 to-rose-600 text-white text-xs font-bold px-5 py-2 rounded-full shadow-lg active:scale-95 transition-transform">
+                                <button onClick={(e) => { e.stopPropagation(); navigate(`/task-detail/${p.id}`); }} className="bg-gradient-to-r from-red-500 to-rose-600 text-white text-xs font-bold px-5 py-2 rounded-full shadow-lg active:scale-95 transition-transform">
                                     {t.startTask}
                                 </button>
                             )}
@@ -472,12 +549,13 @@ export const TasksView: React.FC<{
                                     </button>
                                 </div>
 
+                                {/* CHANGED: Card button navigates to details, does NOT open external link */}
                                 {isSoldOut ? (
                                     <button disabled className="bg-slate-600 text-slate-300 text-xs font-bold px-5 py-2 rounded-full cursor-not-allowed">
                                         Sold Out
                                     </button>
                                 ) : (
-                                    <button onClick={(e) => { e.stopPropagation(); onQuickJoin(p); }} className="bg-gradient-to-r from-red-500 to-rose-600 text-white text-xs font-bold px-5 py-2 rounded-full shadow-lg active:scale-95 transition-transform">
+                                    <button onClick={(e) => { e.stopPropagation(); navigate(`/task-detail/${p.id}`); }} className="bg-gradient-to-r from-red-500 to-rose-600 text-white text-xs font-bold px-5 py-2 rounded-full shadow-lg active:scale-95 transition-transform">
                                         {t.startTask}
                                     </button>
                                 )}
@@ -557,6 +635,7 @@ export const TaskDetailView: React.FC<{ platforms: Platform[]; onStartTask: (p: 
         </div>
       </div>
       <div className={`fixed bottom-0 left-0 right-0 p-4 backdrop-blur z-50 max-w-md mx-auto ${isGold ? 'bg-slate-50/90' : 'bg-slate-900/90'}`}>
+        {/* Detail page button opens the external link (download/join) */}
         <button onClick={() => { onStartTask(platform); }} className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-bold py-3.5 rounded-xl shadow-lg">{t.startTask}</button>
       </div>
     </div>
@@ -836,9 +915,10 @@ export const ProfileView: React.FC<{ user: User; t: any; logout: () => void; lan
       }
   }, [hasAccounts, accounts, selectedAccId]);
 
-  // Determine VIP Config based on country (using language as proxy or passed config)
-  // Fallback to 'en' or first available if current lang is missing
-  const vipTiers = config.vipConfig?.[lang] || config.vipConfig?.['en'] || [];
+  // Determine VIP Config based on user currency mapping or fallback
+  const userCountryEntry = Object.entries(LANGUAGES).find(([k, v]) => v.currency === user.currency);
+  const userCountry = userCountryEntry ? userCountryEntry[0] : 'en';
+  const vipTiers = config.vipConfig?.[userCountry] || config.vipConfig?.['en'] || [];
 
   return (
     <div className={`min-h-screen pb-20 ${isGold ? 'bg-slate-50' : 'bg-slate-900'}`}>

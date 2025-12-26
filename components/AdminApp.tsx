@@ -4,7 +4,8 @@ import { generatePlatformInfo, generatePlatformLogo } from '../services/geminiSe
 import { LANGUAGES } from '../constants';
 import { 
   Shield, CheckCircle, User as UserIcon, List, Image, Key, LogOut, ArrowLeft,
-  LayoutDashboard, Sparkles, Wand2, Zap, Lock, Settings, Mail, Send, Trash2, Power, Plus, X, Save, Coins, BarChart3, Pin, Ban, Crown, Wallet
+  LayoutDashboard, Sparkles, Wand2, Zap, Lock, Settings, Mail, Send, Trash2, Power, Plus, X, Save, Coins, BarChart3, Pin, Ban, Crown, Wallet,
+  Eye
 } from 'lucide-react';
 
 interface AdminAppProps {
@@ -74,6 +75,7 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
   const [session, setSession] = useState<Admin | null>(null);
   const [view, setView] = useState<'dashboard' | 'audit' | 'withdrawals' | 'users' | 'tasks' | 'activities' | 'admins' | 'config' | 'messages'>('dashboard');
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
   
   // --- FORM STATES ---
   const [actTitle, setActTitle] = useState('');
@@ -171,6 +173,24 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
         newConfig.minWithdrawAmount = { ...newConfig.minWithdrawAmount, [country]: val };
     }
     props.updateConfig(newConfig);
+  };
+  
+  const handleVipConfigChange = (index: number, field: 'threshold' | 'reward', value: string) => {
+      const newConfig = { ...props.config };
+      const currentVipConfig = newConfig.vipConfig || {};
+      const countryTiers = [...(currentVipConfig[vipCountry] || [])];
+      
+      // Ensure we have a valid array to update
+      if (countryTiers[index]) {
+        countryTiers[index] = { ...countryTiers[index], [field]: parseInt(value) || 0 };
+        
+        newConfig.vipConfig = {
+            ...currentVipConfig,
+            [vipCountry]: countryTiers
+        };
+        
+        props.updateConfig(newConfig);
+      }
   };
 
   const saveConfigManually = () => {
@@ -284,6 +304,15 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans text-slate-800">
+      
+      {/* IMAGE MODAL */}
+      {imageModalUrl && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-10 animate-entry" onClick={() => setImageModalUrl(null)}>
+              <img src={imageModalUrl} className="max-w-full max-h-full rounded-lg shadow-2xl" />
+              <button className="absolute top-5 right-5 text-white bg-slate-800 p-2 rounded-full"><X size={24}/></button>
+          </div>
+      )}
+
       <aside className="w-64 bg-slate-900 text-white flex flex-col fixed h-full shadow-2xl z-10">
         <div className="p-6 border-b border-slate-800"><h1 className="text-xl font-bold flex items-center gap-2 text-white"><Shield className="text-yellow-400" /><span>Admin Panel</span></h1></div>
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
@@ -342,7 +371,13 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                        <tr key={task.id}>
                           <td className="p-4"><div className="font-bold">{user?.phone}</div><div className="text-xs text-slate-400">ID: {user?.id}</div></td>
                           <td className="p-4"><div className="font-bold text-indigo-600">{task.platformName}</div><div className="text-xs">Reward: {task.rewardAmount}</div></td>
-                          <td className="p-4">{task.proofImageUrl ? <a href={task.proofImageUrl} target="_blank" className="text-indigo-600 underline">View</a> : 'No Image'}</td>
+                          <td className="p-4">
+                              {task.proofImageUrl ? (
+                                  <button onClick={() => setImageModalUrl(task.proofImageUrl!)} className="flex items-center gap-1 text-indigo-600 text-sm font-bold bg-indigo-50 px-3 py-1 rounded hover:bg-indigo-100">
+                                      <Eye size={14} /> View
+                                  </button>
+                              ) : 'No Image'}
+                          </td>
                           <td className="p-4 flex gap-2">
                              <button onClick={() => user && props.updateTaskStatus(user.id, task.id, 'completed')} className="bg-green-100 text-green-700 px-3 py-1 rounded">Approve</button>
                              <button onClick={() => user && props.updateTaskStatus(user.id, task.id, 'rejected')} className="bg-red-100 text-red-700 px-3 py-1 rounded">Reject</button>
@@ -524,23 +559,11 @@ const AdminApp: React.FC<AdminAppProps> = (props) => {
                                   <span className="font-bold w-12 text-yellow-700">LV {vip.level}</span>
                                   <div className="flex-1 flex items-center gap-2">
                                       <span>Threshold:</span>
-                                      <input type="number" value={vip.threshold} onChange={e => {
-                                          const newConfig = {...props.config};
-                                          if (!newConfig.vipConfig) newConfig.vipConfig = {};
-                                          if (!newConfig.vipConfig[vipCountry]) newConfig.vipConfig[vipCountry] = [];
-                                          newConfig.vipConfig[vipCountry][idx].threshold = parseInt(e.target.value);
-                                          props.updateConfig(newConfig);
-                                      }} className="w-20 border rounded p-1" />
+                                      <input type="number" value={vip.threshold} onChange={e => handleVipConfigChange(idx, 'threshold', e.target.value)} className="w-20 border rounded p-1" />
                                   </div>
                                   <div className="flex-1 flex items-center gap-2">
                                       <span>Reward:</span>
-                                      <input type="number" value={vip.reward} onChange={e => {
-                                          const newConfig = {...props.config};
-                                          if (!newConfig.vipConfig) newConfig.vipConfig = {};
-                                          if (!newConfig.vipConfig[vipCountry]) newConfig.vipConfig[vipCountry] = [];
-                                          newConfig.vipConfig[vipCountry][idx].reward = parseInt(e.target.value);
-                                          props.updateConfig(newConfig);
-                                      }} className="w-20 border rounded p-1" />
+                                      <input type="number" value={vip.reward} onChange={e => handleVipConfigChange(idx, 'reward', e.target.value)} className="w-20 border rounded p-1" />
                                   </div>
                               </div>
                           ))}

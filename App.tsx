@@ -75,7 +75,9 @@ const App: React.FC = () => {
   const [lang, setLang] = useState<Language>('en');
   const [sort, setSort] = useState<SortOption>(SortOption.NEWEST);
   const [popupData, setPopupData] = useState<{ amount: number; title?: string } | null>(null);
-  const prevTxCountRef = useRef(0);
+  
+  // Track last notified transaction to prevent duplicates on refresh
+  const [lastNotifiedTxId, setLastNotifiedTxId] = useState<string>(() => localStorage.getItem('betbounty_last_tx') || '');
 
   // Initialize
   useEffect(() => {
@@ -148,12 +150,14 @@ const App: React.FC = () => {
     
     // Check for popup transactions
     const txs = user.transactions || [];
-    if (txs.length > prevTxCountRef.current) {
+    if (txs.length > 0) {
         const newTx = txs[0]; 
-        if (newTx && newTx.amount > 0 && ['task_reward','admin_gift','referral_bonus','system_bonus','vip_bonus'].includes(newTx.type)) {
+        // Only show if it's a new ID we haven't shown before
+        if (newTx.id !== lastNotifiedTxId && newTx.amount > 0 && ['task_reward','admin_gift','referral_bonus','system_bonus','vip_bonus'].includes(newTx.type)) {
             setPopupData({ amount: newTx.amount, title: newTx.type === 'vip_bonus' ? 'VIP UPGRADE!' : undefined });
+            setLastNotifiedTxId(newTx.id);
+            localStorage.setItem('betbounty_last_tx', newTx.id);
         }
-        prevTxCountRef.current = txs.length;
     }
 
     // Check VIP Upgrade - Country Specific
@@ -200,7 +204,7 @@ const App: React.FC = () => {
              setUsers(prev => prev.map(u => u.id === user.id ? newUser : u));
         }
     }
-  }, [user, config.vipConfig, users]);
+  }, [user, config.vipConfig, users, lastNotifiedTxId]);
 
   // Auth Handlers
   const handleAuth = (phone: string, pass: string, isReg: boolean, invite?: string): string | null => {
@@ -446,15 +450,7 @@ const App: React.FC = () => {
       }));
       if (user && (uid === 'all' || user.id === uid)) {
           // Force update local user state if logged in and target
-          // Logic is handled by setUsers which triggers re-render, but local `user` state might need explicit refresh if it's separate?
-          // Here `user` is state, `users` is state. `setUsers` updates the master list. 
-          // We need to sync `user` state if current user is affected.
-          // Due to closure, we can't see the updated `users` immediately.
-          // Simplest is to rely on `useEffect` or just update `user` separately if id matches.
-          // For now, let's update `user` if match.
-          if (uid === 'all' || user.id === uid) {
-             // We'll let the user refresh or next action sync it, or update it here accurately:
-             setUser(prev => {
+          setUser(prev => {
                  if(!prev) return null;
                  const txs = [...prev.transactions];
                  let bal = prev.balance;
@@ -463,8 +459,7 @@ const App: React.FC = () => {
                      txs.unshift({ id: 'tx_gift_' + Date.now(), type: 'admin_gift', amount, date: new Date().toISOString(), description: `Gift: ${title}`, status: 'success' });
                  }
                  return { ...prev, messages: [newMsg, ...prev.messages], balance: bal, transactions: txs };
-             });
-          }
+          });
       }
       alert("Message sent!");
   };
